@@ -119,6 +119,30 @@ describe('POST /api/webhooks/crossmint', () => {
     })
     const res = await POST(req)
     expect(res.status).toBe(200)
+    expect(mockMintUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }))
     expect(mockUpdateMint).toHaveBeenCalledWith('order_id', 'order-2')
+  })
+
+  it('returns 400 on malformed JSON body', async () => {
+    mockVerifyWebhook.mockReturnValueOnce({ type: 'unknown', orderId: 'o1' })
+    const req = new NextRequest('http://localhost/api/webhooks/crossmint', {
+      method: 'POST',
+      headers: { 'crossmint-signature': 'valid' },
+      body: 'not-valid-json',
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 200 even when webhook_events insert fails', async () => {
+    mockVerifyWebhook.mockReturnValueOnce({ type: 'unknown', orderId: 'o1' })
+    mockInsertWebhook.mockResolvedValueOnce({ error: { message: 'constraint violation' } })
+    const req = new NextRequest('http://localhost/api/webhooks/crossmint', {
+      method: 'POST',
+      headers: { 'crossmint-signature': 'valid' },
+      body: '{"type":"orders.something"}',
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
   })
 })
