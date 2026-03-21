@@ -33,6 +33,18 @@ describe('WalletButtons', () => {
     expect(link?.href).toContain('rnbwapp.com/dapp')
   })
 
+  it('Rabby link uses link.rabby.io format', () => {
+    render(<WalletButtons mintUrl={MINT_URL} />)
+    const link = screen.getByText(/Rabby/i).closest('a')
+    expect(link?.href).toContain('link.rabby.io/dapp')
+  })
+
+  it('Other Wallet is not a link (WalletConnect handled by checkout form)', () => {
+    render(<WalletButtons mintUrl={MINT_URL} />)
+    const el = screen.getByText(/Other Wallet/i)
+    expect(el.tagName).not.toBe('A')
+  })
+
   it('all wallet links open in the same tab (no target _blank)', () => {
     render(<WalletButtons mintUrl={MINT_URL} />)
     const links = screen.getAllByRole('link')
