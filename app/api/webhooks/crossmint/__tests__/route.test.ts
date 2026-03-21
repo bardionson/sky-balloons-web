@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const mockInsertWebhook = vi.hoisted(() => vi.fn())
+const mockMintUpdate = vi.hoisted(() => vi.fn())
 const mockUpdateMint = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/db/server', () => ({
   serverClient: () => ({
     from: (table: string) => {
       if (table === 'webhook_events') return { insert: mockInsertWebhook }
       if (table === 'mints') return {
-        update: () => ({ eq: mockUpdateMint }),
+        update: (payload: unknown) => { mockMintUpdate(payload); return { eq: mockUpdateMint } },
       }
       return {}
     },
@@ -26,6 +27,7 @@ describe('POST /api/webhooks/crossmint', () => {
   beforeEach(() => {
     mockVerifyWebhook.mockReset()
     mockInsertWebhook.mockReset()
+    mockMintUpdate.mockReset()
     mockUpdateMint.mockReset()
   })
 
@@ -52,6 +54,38 @@ describe('POST /api/webhooks/crossmint', () => {
     expect(res.status).toBe(200)
   })
 
+  it('updates mint status to paid on payment.succeeded', async () => {
+    mockVerifyWebhook.mockReturnValueOnce({ type: 'payment.succeeded', orderId: 'order-3' })
+    mockInsertWebhook.mockResolvedValueOnce({ error: null })
+    mockUpdateMint.mockResolvedValueOnce({ error: null })
+
+    const req = new NextRequest('http://localhost/api/webhooks/crossmint', {
+      method: 'POST',
+      headers: { 'crossmint-signature': 'valid' },
+      body: JSON.stringify({ type: 'orders.payment.succeeded' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(mockMintUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'paid' }))
+    expect(mockUpdateMint).toHaveBeenCalledWith('order_id', 'order-3')
+  })
+
+  it('updates mint status to minting on delivery.initiated', async () => {
+    mockVerifyWebhook.mockReturnValueOnce({ type: 'delivery.initiated', orderId: 'order-4' })
+    mockInsertWebhook.mockResolvedValueOnce({ error: null })
+    mockUpdateMint.mockResolvedValueOnce({ error: null })
+
+    const req = new NextRequest('http://localhost/api/webhooks/crossmint', {
+      method: 'POST',
+      headers: { 'crossmint-signature': 'valid' },
+      body: JSON.stringify({ type: 'orders.delivery.initiated' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    expect(mockMintUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'minting' }))
+    expect(mockUpdateMint).toHaveBeenCalledWith('order_id', 'order-4')
+  })
+
   it('updates mint status to minted on delivery.completed', async () => {
     mockVerifyWebhook.mockReturnValueOnce({
       type: 'delivery.completed',
@@ -69,6 +103,7 @@ describe('POST /api/webhooks/crossmint', () => {
     })
     const res = await POST(req)
     expect(res.status).toBe(200)
+    expect(mockMintUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'minted', token_id: '7', tx_hash: '0xdef' }))
     expect(mockUpdateMint).toHaveBeenCalledWith('order_id', 'order-1')
   })
 
@@ -84,5 +119,6 @@ describe('POST /api/webhooks/crossmint', () => {
     })
     const res = await POST(req)
     expect(res.status).toBe(200)
+    expect(mockUpdateMint).toHaveBeenCalledWith('order_id', 'order-2')
   })
 })
