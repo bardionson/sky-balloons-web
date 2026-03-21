@@ -9,6 +9,6 @@ export async function GET(_req: NextRequest) {
     .eq('key', 'mint_price_usd')
     .single()
 
-  const price = (!error && data) ? data.value : '50.00'
+  const price = (!error && data) ? (data.value ?? '50.00') : '50.00'
   return NextResponse.json({ price_usd: price })
 }
