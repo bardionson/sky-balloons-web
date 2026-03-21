@@ -61,4 +61,40 @@ describe('GET /api/cron/check-orders', () => {
     expect(res.status).toBe(200)
     expect(mockUpdate).toHaveBeenCalled()
   })
+
+  it('returns 500 when CRON_SECRET env var is not set', async () => {
+    const original = process.env.CRON_SECRET
+    delete process.env.CRON_SECRET
+    const req = new NextRequest('http://localhost/api/cron/check-orders', {
+      headers: { authorization: 'Bearer test-cron-secret' },
+    })
+    const res = await GET(req)
+    expect(res.status).toBe(500)
+    process.env.CRON_SECRET = original
+  })
+
+  it('updates mint to failed when provider reports failed', async () => {
+    mockSelect.mockResolvedValueOnce({
+      data: [{ id: 'mint-2', order_id: 'order-2' }],
+      error: null,
+    })
+    mockGetOrder.mockResolvedValueOnce({ status: 'failed', orderId: 'order-2' })
+    mockUpdate.mockResolvedValueOnce({ error: null })
+
+    const req = new NextRequest('http://localhost/api/cron/check-orders', {
+      headers: { authorization: 'Bearer test-cron-secret' },
+    })
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+    expect(mockUpdate).toHaveBeenCalled()
+  })
+
+  it('returns 500 when DB query fails', async () => {
+    mockSelect.mockResolvedValueOnce({ data: null, error: { message: 'db error' } })
+    const req = new NextRequest('http://localhost/api/cron/check-orders', {
+      headers: { authorization: 'Bearer test-cron-secret' },
+    })
+    const res = await GET(req)
+    expect(res.status).toBe(500)
+  })
 })

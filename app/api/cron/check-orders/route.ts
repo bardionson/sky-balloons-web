@@ -3,6 +3,11 @@ import { serverClient } from '@/lib/db/server'
 import { paymentProvider } from '@/lib/payment'
 
 export async function GET(req: NextRequest) {
+  if (!process.env.CRON_SECRET) {
+    console.error('[cron/check-orders] CRON_SECRET is not set')
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+  }
+
   // Vercel cron requests include the CRON_SECRET as a Bearer token
   const auth = req.headers.get('authorization') ?? ''
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -27,15 +32,16 @@ export async function GET(req: NextRequest) {
     try {
       const order = await paymentProvider.getOrder(mint.order_id)
       if (order.status === 'completed') {
-        await db
+        const { error: updateErr } = await db
           .from('mints')
-          .update({ status: 'minted', token_id: (order as never as { tokenId?: string }).tokenId ?? null,
-                    tx_hash: (order as never as { txHash?: string }).txHash ?? null })
+          .update({ status: 'minted', token_id: order.tokenId ?? null, tx_hash: order.txHash ?? null })
           .eq('id', mint.id)
-        updated++
+        if (updateErr) console.error('[cron/check-orders] Failed to update mint:', updateErr)
+        else updated++
       } else if (order.status === 'failed') {
-        await db.from('mints').update({ status: 'failed' }).eq('id', mint.id)
-        updated++
+        const { error: updateErr } = await db.from('mints').update({ status: 'failed' }).eq('id', mint.id)
+        if (updateErr) console.error('[cron/check-orders] Failed to update mint:', updateErr)
+        else updated++
       }
     } catch {
       // Individual order check failure — continue with others

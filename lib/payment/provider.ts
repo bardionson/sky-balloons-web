@@ -9,6 +9,8 @@ export interface OrderResult {
   orderId: string
   clientSecret?: string   // for Stripe Elements card payments
   status: OrderStatus
+  tokenId?: string   // populated when status === 'completed'
+  txHash?: string    // populated when status === 'completed'
 }
 
 export type OrderStatus =
