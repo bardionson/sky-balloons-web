@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { serverClient } from '@/lib/db/server'
 import CheckoutForm from '@/components/CheckoutForm'
+import IpfsImage from '@/components/IpfsImage'
 import type { Mint } from '@/lib/db/types'
 
 interface Props {
@@ -36,9 +37,6 @@ export default async function MintPage({ params }: Props) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
   const mintUrl = `${appUrl}/mint/${params.id}`
 
-  // IPFS image — try dweb.link first, ipfs.io as fallback (handled client-side with onError)
-  const imageUrl = `https://dweb.link/ipfs/${mint.cid}`
-
   const m = mint as Mint
 
   return (
@@ -55,18 +53,10 @@ export default async function MintPage({ params }: Props) {
 
       {/* Artwork */}
       <div className="mb-6 rounded-xl overflow-hidden shadow-2xl max-w-xs w-full aspect-square bg-white/5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageUrl}
+        <IpfsImage
+          cid={m.cid}
           alt={`Balloon #${m.unit_number} — ${m.unique_name}`}
           className="w-full h-full object-cover"
-          onError={(e) => {
-            // Fallback to ipfs.io gateway
-            const img = e.currentTarget
-            if (!img.src.includes('ipfs.io')) {
-              img.src = `https://ipfs.io/ipfs/${m.cid}`
-            }
-          }}
         />
       </div>
 
