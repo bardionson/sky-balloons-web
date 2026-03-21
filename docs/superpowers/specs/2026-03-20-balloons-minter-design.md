@@ -29,7 +29,7 @@ Viewer scans QR → phone opens /mint/[id]
   → Server fetches mint record from Supabase
   → Viewer sees artwork + metadata + price
   → Enters email, name, optional wallet + mailing address
-  → Chooses: wallet deep link (MetaMask/Coinbase/Rainbow/Trust)
+  → Chooses: wallet deep link (MetaMask/Coinbase/Rabby/Rainbow/Other via WalletConnect)
              OR card / Apple Pay / Google Pay (Crossmint embedded)
 
   POST /api/mint/[id]/order
@@ -238,12 +238,15 @@ form → submitting → payment → polling → success
 - Mailing address (optional, collapsible section): street, city, state, postal code, country
 
 **Wallet deep-link buttons (shown above form):**
-| Wallet | Deep link |
-|---|---|
-| MetaMask | `https://metamask.app.link/dapp/{host}/mint/{id}` |
-| Coinbase Wallet | `https://go.cb-wallet.com/dapp?url={encoded_url}` |
-| Rainbow | `https://rnbwapp.com/dapp?url={encoded_url}` |
-| Trust Wallet | `https://link.trustwallet.com/open_url?coin_id=60&url={encoded_url}` |
+| Wallet | Deep link | Status |
+|---|---|---|
+| 🦊 MetaMask | `https://metamask.app.link/dapp/{host}/mint/{id}` | Confirmed |
+| 🔵 Coinbase Wallet | `https://go.cb-wallet.com/dapp?url={encoded_url}` | Confirmed |
+| 🐰 Rabby | `https://link.rabby.io/dapp?url={encoded_url}` | **Verify before shipping** |
+| 🌈 Rainbow | `https://rnbwapp.com/dapp?url={encoded_url}` | Confirmed |
+| 🔗 Other Wallet | WalletConnect modal via Crossmint embedded checkout | Confirmed |
+
+"Other Wallet" covers the 300+ WalletConnect-compatible wallets (Trust Wallet, Argent, imToken, etc.) via Crossmint's built-in wallet picker. No custom deep link needed.
 
 When opened in a wallet browser, `window.ethereum` is injected — Crossmint's embedded checkout detects it and offers crypto as payment method. **Verify this behaviour against Crossmint staging before shipping:** if `window.ethereum` is not auto-detected, the form should fall back to showing the card payment flow rather than silently showing no payment option.
 
