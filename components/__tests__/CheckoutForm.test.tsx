@@ -55,6 +55,22 @@ describe('CheckoutForm', () => {
     })
   })
 
+  it('shows error when order returns without clientSecret', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'order-1' }), // no clientSecret
+    })
+
+    render(<CheckoutForm {...BASE_PROPS} />)
+    await userEvent.type(screen.getByLabelText(/email/i), 'buyer@test.com')
+    await userEvent.type(screen.getByLabelText(/name/i), 'Buyer Name')
+    fireEvent.submit(screen.getByRole('form'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/payment session unavailable/i)).toBeInTheDocument()
+    })
+  })
+
   it('renders CrossmintEmbeddedCheckout after successful order creation', async () => {
     mockFetch
       .mockResolvedValueOnce({

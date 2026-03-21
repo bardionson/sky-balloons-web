@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { CrossmintProvider, CrossmintEmbeddedCheckout } from '@crossmint/client-sdk-react-ui'
 import WalletButtons from './WalletButtons'
 import MintSuccess from './MintSuccess'
@@ -30,7 +30,6 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [tokenId, setTokenId] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const clientKey = process.env.NEXT_PUBLIC_CROSSMINT_CLIENT_KEY ?? ''
 
@@ -59,24 +58,32 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
 
       setOrderId(data.orderId)
       setClientSecret(data.clientSecret ?? null)
-      setPhase('payment')
+      if (!data.clientSecret) {
+        setErrorMsg('Payment session unavailable — please try again')
+        setPhase('error')
+      } else {
+        setPhase('payment')
+      }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Unknown error')
       setPhase('error')
     }
   }
 
-  // Poll for mint completion after order is created
+  // Poll for mint completion after order is created.
+  // Status endpoint looks up by mintId (URL path param). Since the order route
+  // enforces 409 if a mint already has an order, a mint only ever has one order
+  // at a time — so polling by mintId is correct and no orderId scoping is needed.
   useEffect(() => {
-    if (!orderId || phase === 'success' || phase === 'error') return
+    if (!orderId) return
 
-    pollRef.current = setInterval(async () => {
+    const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/mint/${mintId}/status`)
         if (!res.ok) return
         const data = await res.json()
         if (data.status === 'minted') {
-          clearInterval(pollRef.current!)
+          clearInterval(interval)
           setTokenId(data.token_id ?? null)
           setTxHash(data.tx_hash ?? null)
           setPhase('success')
@@ -84,8 +91,8 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
       } catch { /* keep polling */ }
     }, 5000)
 
-    return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [orderId, phase, mintId])
+    return () => clearInterval(interval)
+  }, [orderId, mintId])
 
   if (phase === 'success') {
     return <MintSuccess tokenId={tokenId} txHash={txHash} unitNumber={unitNumber} />
