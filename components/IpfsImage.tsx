@@ -8,7 +8,7 @@ interface Props {
 
 export default function IpfsImage({ cid, alt, className }: Props) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element
+    // eslint-disable-next-line @next/next/no-img-element -- IPFS gateways cannot be statically whitelisted; onError fallback requires plain <img>
     <img
       src={`https://dweb.link/ipfs/${cid}`}
       alt={alt}
