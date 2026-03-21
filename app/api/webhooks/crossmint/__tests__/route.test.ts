@@ -145,4 +145,16 @@ describe('POST /api/webhooks/crossmint', () => {
     const res = await POST(req)
     expect(res.status).toBe(200)
   })
+
+  it('lets unexpected verifyWebhook throws propagate (returns 500 to trigger Crossmint retry)', async () => {
+    mockVerifyWebhook.mockImplementationOnce(() => { throw new Error('library crash') })
+    const req = new NextRequest('http://localhost/api/webhooks/crossmint', {
+      method: 'POST',
+      headers: { 'crossmint-signature': 'valid' },
+      body: '{}',
+    })
+    // verifyWebhook throws → Next.js returns 500 → Crossmint retries → correct behavior
+    // The handler itself doesn't catch this, so it propagates
+    await expect(POST(req)).rejects.toThrow('library crash')
+  })
 })
