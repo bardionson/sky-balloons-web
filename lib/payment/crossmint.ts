@@ -1,7 +1,11 @@
 import crypto from 'crypto'
 import type { PaymentProvider, CreateOrderParams, OrderResult, ProviderWebhookEvent } from './provider'
 
-const BASE_URL = 'https://www.crossmint.com/api/2022-06-09'
+function getBaseUrl(): string {
+  return process.env.CROSSMINT_SERVER_KEY?.startsWith('sk_staging_')
+    ? 'https://staging.crossmint.com/api/2022-06-09'
+    : 'https://www.crossmint.com/api/2022-06-09'
+}
 
 function mapStatus(phase: string, paymentStatus: string): OrderResult['status'] {
   if (phase === 'completed' || paymentStatus === 'completed') return 'completed'
@@ -33,24 +37,25 @@ export class CrossmintAdapter implements PaymentProvider {
 
   async createOrder(params: CreateOrderParams): Promise<OrderResult> {
     const body = {
-      recipient: {
-        email: params.recipientEmail,
-        ...(params.recipientWallet && { walletAddress: `ethereum-sepolia:${params.recipientWallet}` }),
-      },
+      recipient: params.recipientWallet
+        ? { walletAddress: params.recipientWallet }
+        : { email: params.recipientEmail },
       payment: {
-        method: 'stripe-payment-element',
+        method: 'card',
         currency: 'usd',
+        receiptEmail: params.recipientEmail,
       },
       lineItems: [{
         collectionLocator: `crossmint:${this.collectionId}`,
         callData: {
-          contractArguments: { _uri: params.uri },
+          _uri: params.uri,
           totalPrice: String(params.priceUsd.toFixed(2)),
+          reuploadLinkedFiles: false,
         },
       }],
     }
 
-    const res = await fetch(`${BASE_URL}/orders`, {
+    const res = await fetch(`${getBaseUrl()}/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -65,15 +70,16 @@ export class CrossmintAdapter implements PaymentProvider {
     }
 
     const data = await res.json()
+    const order = data.order ?? data  // createOrder wraps under .order; fall back for safety
     return {
-      orderId: data.orderId,
-      clientSecret: data.payment?.preparation?.clientSecret,
-      status: mapStatus(data.phase ?? '', data.payment?.status ?? ''),
+      orderId: order.orderId,
+      clientSecret: data.clientSecret,
+      status: mapStatus(order.phase ?? '', order.payment?.status ?? ''),
     }
   }
 
   async getOrder(orderId: string): Promise<OrderResult> {
-    const res = await fetch(`${BASE_URL}/orders/${orderId}`, {
+    const res = await fetch(`${getBaseUrl()}/orders/${orderId}`, {
       headers: { 'X-API-KEY': this.serverKey },
       cache: 'no-store',
     })
@@ -81,8 +87,9 @@ export class CrossmintAdapter implements PaymentProvider {
     if (!res.ok) throw new Error(`Crossmint getOrder failed (${res.status})`)
 
     const data = await res.json()
-    const tokenId = data.lineItems?.[0]?.metadata?.tokenId as string | undefined
-    const txHash = data.lineItems?.[0]?.metadata?.transactionHash as string | undefined
+    const delivery = data.lineItems?.[0]?.delivery
+    const tokenId = delivery?.tokens?.[0]?.tokenId as string | undefined
+    const txHash = delivery?.txId as string | undefined
 
     return {
       orderId: data.orderId,

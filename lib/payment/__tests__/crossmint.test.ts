@@ -20,9 +20,8 @@ describe('CrossmintAdapter.createOrder', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        orderId: 'order-123',
-        payment: { preparation: { clientSecret: 'cs_test' } },
-        status: 'awaiting-payment',
+        clientSecret: 'cs_test',
+        order: { orderId: 'order-123', phase: 'payment', payment: { status: 'awaiting-payment' } },
       }),
     })
 
@@ -34,7 +33,7 @@ describe('CrossmintAdapter.createOrder', () => {
     })
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://www.crossmint.com/api/2022-06-09/orders',
+      'https://staging.crossmint.com/api/2022-06-09/orders',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ 'X-API-KEY': SERVER_KEY }),
@@ -42,27 +41,54 @@ describe('CrossmintAdapter.createOrder', () => {
     )
   })
 
-  it('sends _uri in contractArguments', async () => {
+  it('sends _uri and reuploadLinkedFiles in callData', async () => {
     const uri = 'data:application/json;base64,abc123'
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ orderId: 'o1', payment: {}, status: 'pending' }),
+      json: async () => ({ clientSecret: 'cs_x', order: { orderId: 'o1', phase: '', payment: { status: 'pending' } } }),
     })
 
     const adapter = new CrossmintAdapter()
     await adapter.createOrder({ recipientEmail: 'a@b.com', uri, priceUsd: 50 })
 
     const body = JSON.parse(mockFetch.mock.calls[0][1].body)
-    expect(body.lineItems[0].callData.contractArguments._uri).toBe(uri)
+    expect(body.lineItems[0].callData._uri).toBe(uri)
+    expect(body.lineItems[0].callData.reuploadLinkedFiles).toBe(false)
+  })
+
+  it('uses walletAddress-only recipient when wallet provided', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ clientSecret: 'cs_x', order: { orderId: 'o1', phase: '', payment: { status: 'pending' } } }),
+    })
+
+    const adapter = new CrossmintAdapter()
+    await adapter.createOrder({ recipientEmail: 'a@b.com', recipientWallet: '0xabc', uri: 'u', priceUsd: 1 })
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.recipient).toEqual({ walletAddress: '0xabc' })
+    expect(body.payment.receiptEmail).toBe('a@b.com')
+  })
+
+  it('uses email-only recipient when no wallet provided', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ clientSecret: 'cs_x', order: { orderId: 'o1', phase: '', payment: { status: 'pending' } } }),
+    })
+
+    const adapter = new CrossmintAdapter()
+    await adapter.createOrder({ recipientEmail: 'a@b.com', uri: 'u', priceUsd: 1 })
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.recipient).toEqual({ email: 'a@b.com' })
   })
 
   it('returns orderId and clientSecret from response', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        orderId: 'order-abc',
-        payment: { preparation: { clientSecret: 'cs_xyz' } },
-        status: 'awaiting-payment',
+        clientSecret: 'cs_xyz',
+        order: { orderId: 'order-abc', phase: 'payment', payment: { status: 'awaiting-payment' } },
       }),
     })
 
@@ -104,25 +130,27 @@ describe('CrossmintAdapter.getOrder', () => {
     await adapter.getOrder('order-123')
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://www.crossmint.com/api/2022-06-09/orders/order-123',
+      'https://staging.crossmint.com/api/2022-06-09/orders/order-123',
       expect.objectContaining({ headers: expect.objectContaining({ 'X-API-KEY': SERVER_KEY }) })
     )
   })
 
-  it('maps completed phase to completed status', async () => {
+  it('maps completed phase to completed status and extracts delivery fields', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         orderId: 'o1',
         payment: { status: 'completed' },
         phase: 'completed',
-        lineItems: [{ metadata: { tokenId: '7', transactionHash: '0xabc' } }],
+        lineItems: [{ delivery: { txId: '0xabc', tokens: [{ tokenId: '7' }] } }],
       }),
     })
 
     const adapter = new CrossmintAdapter()
     const result = await adapter.getOrder('o1')
     expect(result.status).toBe('completed')
+    expect(result.tokenId).toBe('7')
+    expect(result.txHash).toBe('0xabc')
   })
 })
 
