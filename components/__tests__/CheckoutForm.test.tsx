@@ -11,7 +11,7 @@ vi.mock('thirdweb', () => ({
 
 vi.mock('thirdweb/react', () => ({
   ThirdwebProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  BuyWidget: ({ purchaseData }: { purchaseData: Record<string, unknown> }) => (
+  CheckoutWidget: ({ purchaseData }: { purchaseData: Record<string, unknown> }) => (
     <div data-testid="thirdweb-widget" data-order-id={purchaseData?.orderId}>
       Thirdweb Pay
     </div>

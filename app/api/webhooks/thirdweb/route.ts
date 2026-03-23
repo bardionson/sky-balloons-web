@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
 import { serverClient } from '@/lib/db/server'
 import { paymentProvider } from '@/lib/payment'
 import { mintOnChain } from '@/lib/chain/mint'
+
+async function resolveAddress(addressOrEns: string): Promise<string> {
+  if (addressOrEns.startsWith('0x')) return addressOrEns
+  // Resolve ENS name to address using Ethereum mainnet
+  const client = createPublicClient({ chain: mainnet, transport: http() })
+  const resolved = await client.getEnsAddress({ name: addressOrEns })
+  if (!resolved) throw new Error(`Could not resolve ENS name: ${addressOrEns}`)
+  return resolved
+}
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
@@ -51,12 +62,11 @@ export async function POST(req: NextRequest) {
             ? mint.collectors[0]
             : mint.collectors
 
-          const recipientAddress: string =
+          const rawAddress: string =
             collector?.wallet_address ??
-            // Fallback: derive Thirdweb in-app wallet address for the email
-            // TODO: call Thirdweb embedded wallet API to get address by email
-            // For now, throw if no wallet address available
             (() => { throw new Error(`No wallet address for mint ${mint.id} — wallet_address required`) })()
+
+          const recipientAddress = await resolveAddress(rawAddress)
 
           const { buildMetadataUri } = await import('@/lib/metadata')
           const uri = buildMetadataUri(mint)

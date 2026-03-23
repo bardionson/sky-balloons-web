@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createThirdwebClient, defineChain } from 'thirdweb'
-import { BuyWidget } from 'thirdweb/react'
-import { ThirdwebProvider } from 'thirdweb/react'
+import { CheckoutWidget, ThirdwebProvider } from 'thirdweb/react'
 import WalletButtons from './WalletButtons'
 import MintSuccess from './MintSuccess'
 import type { ThirdwebPaymentConfig } from '@/lib/payment/thirdweb'
@@ -32,20 +31,16 @@ function ThirdwebCheckout({
 
   return (
     <div className="w-full max-w-md">
-      <BuyWidget
+      <CheckoutWidget
         client={thirdwebClient}
         chain={chain}
         amount={config.priceEth}
-        recipient={config.treasuryAddress as `0x${string}`}
+        seller={config.treasuryAddress as `0x${string}`}
         purchaseData={{ orderId: config.orderId }}
+        paymentMethods={['crypto', 'card']}
         theme="dark"
+        name="Balloons in the Sky NFT"
         onSuccess={onSuccess}
-        payOptions={{
-          buyWithCrypto: {
-            // Enable test mode on non-mainnet chains so no real funds are used
-            testMode: config.chainId !== 1,
-          },
-        }}
       />
     </div>
   )
