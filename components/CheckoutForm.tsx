@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CrossmintProvider, CrossmintEmbeddedCheckout } from '@crossmint/client-sdk-react-ui'
+import { createThirdwebClient, defineChain } from 'thirdweb'
+import { BuyWidget } from 'thirdweb/react'
+import { ThirdwebProvider } from 'thirdweb/react'
 import WalletButtons from './WalletButtons'
 import MintSuccess from './MintSuccess'
+import type { ThirdwebPaymentConfig } from '@/lib/payment/thirdweb'
 
 type Phase = 'form' | 'submitting' | 'payment' | 'success' | 'error'
 
@@ -12,6 +15,40 @@ interface Props {
   mintUrl: string
   priceUsd: string
   unitNumber?: number
+}
+
+const thirdwebClient = createThirdwebClient({
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID ?? '',
+})
+
+function ThirdwebCheckout({
+  config,
+  onSuccess,
+}: {
+  config: ThirdwebPaymentConfig & { orderId: string }
+  onSuccess: () => void
+}) {
+  const chain = defineChain(config.chainId)
+
+  return (
+    <div className="w-full max-w-md">
+      <BuyWidget
+        client={thirdwebClient}
+        chain={chain}
+        amount={config.priceEth}
+        recipient={config.treasuryAddress as `0x${string}`}
+        purchaseData={{ orderId: config.orderId }}
+        theme="dark"
+        onSuccess={onSuccess}
+        payOptions={{
+          buyWithCrypto: {
+            // Enable test mode on non-mainnet chains so no real funds are used
+            testMode: config.chainId !== 1,
+          },
+        }}
+      />
+    </div>
+  )
 }
 
 export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0 }: Props) {
@@ -26,12 +63,10 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
   const [postal, setPostal] = useState('')
   const [country, setCountry] = useState('')
   const [orderId, setOrderId] = useState<string | null>(null)
-  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [paymentConfig, setPaymentConfig] = useState<ThirdwebPaymentConfig | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [tokenId, setTokenId] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
-
-  const clientKey = process.env.NEXT_PUBLIC_CROSSMINT_CLIENT_KEY ?? ''
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -57,12 +92,20 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
       if (!res.ok) throw new Error(data.error ?? 'Order creation failed')
 
       setOrderId(data.orderId)
-      setClientSecret(data.clientSecret ?? null)
+
       if (!data.clientSecret) {
         setErrorMsg('Payment session unavailable — please try again')
         setPhase('error')
-      } else {
+        return
+      }
+
+      try {
+        const config = JSON.parse(data.clientSecret) as ThirdwebPaymentConfig
+        setPaymentConfig(config)
         setPhase('payment')
+      } catch {
+        setErrorMsg('Invalid payment config — please try again')
+        setPhase('error')
       }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Unknown error')
@@ -70,10 +113,7 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
     }
   }
 
-  // Poll for mint completion after order is created.
-  // Status endpoint looks up by mintId (URL path param). Since the order route
-  // enforces 409 if a mint already has an order, a mint only ever has one order
-  // at a time — so polling by mintId is correct and no orderId scoping is needed.
+  // Poll for mint completion after order is placed.
   useEffect(() => {
     if (!orderId) return
 
@@ -112,22 +152,14 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
     )
   }
 
-  if (phase === 'payment' && orderId && clientSecret) {
+  if (phase === 'payment' && orderId && paymentConfig) {
     return (
-      <div className="w-full max-w-md">
-        <CrossmintProvider apiKey={clientKey}>
-          <CrossmintEmbeddedCheckout
-            orderId={orderId}
-            clientSecret={clientSecret}
-            payment={{
-              crypto: { enabled: false },
-              fiat: { enabled: true, allowedMethods: { card: true } },
-              defaultMethod: 'fiat',
-              receiptEmail: email,
-            }}
-          />
-        </CrossmintProvider>
-      </div>
+      <ThirdwebProvider>
+        <ThirdwebCheckout
+          config={{ ...paymentConfig, orderId }}
+          onSuccess={() => { /* polling will detect completion */ }}
+        />
+      </ThirdwebProvider>
     )
   }
 
