@@ -1,18 +1,19 @@
 'use client'
 
 import { getContract } from 'thirdweb'
-import { mainnet } from 'viem/chains'
+import { ethereum } from 'thirdweb/chains'
 import { ThirdwebProvider, ConnectButton, useActiveAccount, useReadContract } from 'thirdweb/react'
 import { getOwnedNFTs } from 'thirdweb/extensions/erc721'
 import { thirdwebClient } from './WalletConnectSection'
 import IpfsImage from './IpfsImage'
 
-const NFT_ADDRESS = process.env.NEXT_PUBLIC_BALLOONS_NFT_ADDRESS ?? ''
+const NFT_ADDRESS = process.env.NEXT_PUBLIC_BALLOONS_NFT_ADDRESS
+if (!NFT_ADDRESS) throw new Error('NEXT_PUBLIC_BALLOONS_NFT_ADDRESS is not set')
 
 const contract = getContract({
   client: thirdwebClient,
   address: NFT_ADDRESS as `0x${string}`,
-  chain: mainnet as unknown as Parameters<typeof getContract>[0]['chain'],
+  chain: ethereum,
 })
 
 function WalletViewInner() {
@@ -20,7 +21,7 @@ function WalletViewInner() {
 
   const { data: ownedNFTs, isLoading } = useReadContract(getOwnedNFTs, {
     contract,
-    address: account?.address ?? '0x0',
+    owner: account?.address ?? '0x0',
     queryOptions: { enabled: !!account?.address },
   })
 

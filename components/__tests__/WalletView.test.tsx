@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import WalletView from '../WalletView'
+import { getOwnedNFTs } from 'thirdweb/extensions/erc721'
 
 // Mock WalletConnectSection (provides thirdwebClient)
 vi.mock('../WalletConnectSection', () => ({
@@ -13,8 +14,8 @@ vi.mock('thirdweb', () => ({
 }))
 
 // Mock thirdweb chains
-vi.mock('viem/chains', () => ({
-  mainnet: { id: 1 },
+vi.mock('thirdweb/chains', () => ({
+  ethereum: { id: 1 },
 }))
 
 // Mock thirdweb ERC721 extension
@@ -30,7 +31,7 @@ vi.mock('thirdweb/react', () => ({
   ThirdwebProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   ConnectButton: () => <button>Connect Wallet</button>,
   useActiveAccount: () => mockUseActiveAccount(),
-  useReadContract: () => mockUseReadContract(),
+  useReadContract: (...args: unknown[]) => mockUseReadContract(...args),
 }))
 
 // Mock IpfsImage
@@ -76,6 +77,10 @@ describe('WalletView', () => {
       isLoading: false,
     })
     render(<WalletView />)
+    expect(mockUseReadContract).toHaveBeenCalledWith(
+      getOwnedNFTs,
+      expect.objectContaining({ owner: '0xABC' })
+    )
     expect(screen.getByText('Balloons in the Sky #0 — Sunrise')).toBeInTheDocument()
     expect(screen.getByText(/token #0/i)).toBeInTheDocument()
     expect(screen.getByAltText('Balloons in the Sky #0 — Sunrise')).toBeInTheDocument()
