@@ -25,52 +25,47 @@ function WalletViewInner() {
     queryOptions: { enabled: !!account?.address },
   })
 
-  if (!account) {
-    return (
-      <div className="flex flex-col items-center gap-4 text-center">
-        <p className="text-white/60 text-sm">Connect your wallet to view your collection.</p>
-        <ConnectButton client={thirdwebClient} theme="dark" />
-      </div>
-    )
-  }
-
-  if (isLoading) {
-    return <p className="text-white/40 text-sm">Loading your collection…</p>
-  }
-
-  if (!ownedNFTs || ownedNFTs.length === 0) {
-    return (
-      <div className="text-center">
-        <p className="text-white/40 text-sm">No Balloons found in this wallet.</p>
-        <p className="text-white/20 text-xs mt-2 font-mono">{account.address}</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col gap-4 w-full">
-      <p className="text-white/30 text-xs font-mono text-center truncate">{account.address}</p>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        {ownedNFTs.map((nft) => {
-          const cid = (nft.metadata.image as string ?? '').replace('ipfs://', '')
-          return (
-            <div
-              key={nft.id.toString()}
-              className="rounded-xl overflow-hidden bg-white/5 border border-white/10"
-            >
-              <IpfsImage
-                cid={cid}
-                alt={nft.metadata.name ?? ''}
-                className="w-full aspect-video object-cover"
-              />
-              <div className="p-3">
-                <p className="text-white text-sm font-medium">{nft.metadata.name}</p>
-                <p className="text-white/40 text-xs mt-1">Token #{nft.id.toString()}</p>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+    <div className="flex flex-col items-center gap-4 w-full">
+      <ConnectButton client={thirdwebClient} theme="dark" />
+
+      {account && isLoading && (
+        <p className="text-white/40 text-sm">Loading your collection…</p>
+      )}
+
+      {account && !isLoading && (!ownedNFTs || ownedNFTs.length === 0) && (
+        <div className="text-center">
+          <p className="text-white/40 text-sm">No Balloons found in this wallet.</p>
+          <p className="text-white/20 text-xs mt-2 font-mono">{account.address}</p>
+        </div>
+      )}
+
+      {account && !isLoading && ownedNFTs && ownedNFTs.length > 0 && (
+        <div className="flex flex-col gap-4 w-full">
+          <p className="text-white/30 text-xs font-mono text-center truncate">{account.address}</p>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {ownedNFTs.map((nft) => {
+              const cid = (nft.metadata.image as string ?? '').replace('ipfs://', '')
+              return (
+                <div
+                  key={nft.id.toString()}
+                  className="rounded-xl overflow-hidden bg-white/5 border border-white/10"
+                >
+                  <IpfsImage
+                    cid={cid}
+                    alt={nft.metadata.name ?? ''}
+                    className="w-full aspect-video object-cover"
+                  />
+                  <div className="p-3">
+                    <p className="text-white text-sm font-medium">{nft.metadata.name}</p>
+                    <p className="text-white/40 text-xs mt-1">Token #{nft.id.toString()}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

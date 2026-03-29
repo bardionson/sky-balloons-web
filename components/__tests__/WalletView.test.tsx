@@ -40,11 +40,17 @@ vi.mock('../IpfsImage', () => ({
 }))
 
 describe('WalletView', () => {
-  it('shows connect prompt when no wallet is connected', () => {
+  it('shows ConnectButton when no wallet is connected', () => {
     mockUseActiveAccount.mockReturnValue(undefined)
     mockUseReadContract.mockReturnValue({ data: undefined, isLoading: false })
     render(<WalletView />)
-    expect(screen.getByText(/connect your wallet/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /connect wallet/i })).toBeInTheDocument()
+  })
+
+  it('renders ConnectButton when wallet is connected', () => {
+    mockUseActiveAccount.mockReturnValue({ address: '0xABC' })
+    mockUseReadContract.mockReturnValue({ data: [], isLoading: false })
+    render(<WalletView />)
     expect(screen.getByRole('button', { name: /connect wallet/i })).toBeInTheDocument()
   })
 
