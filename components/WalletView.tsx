@@ -57,6 +57,7 @@ function WalletViewInner() {
   }
 
   function handleSend(tokenId: bigint) {
+    if (!account) return
     const addr = transfer?.address ?? ''
     if (!isValidAddress(addr)) {
       setTransfer(prev => prev ? { ...prev, error: 'Invalid address' } : null)
@@ -70,7 +71,7 @@ function WalletViewInner() {
       tokenId,
     })
     sendTx(tx as Parameters<typeof sendTx>[0], {
-      onSuccess: () => refetch(),
+      onSuccess: () => { setTransfer(null); refetch() },
       onError: (e: Error) =>
         setTransfer(prev => prev ? { ...prev, status: 'open', error: e.message || 'Transfer failed.' } : null),
     })

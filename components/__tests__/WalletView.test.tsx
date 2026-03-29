@@ -181,8 +181,9 @@ describe('WalletView', () => {
       await userEvent.click(screen.getAllByRole('button', { name: /^transfer$/i })[0])
       await userEvent.type(screen.getByPlaceholderText('0x...'), VALID_ADDRESS)
       await userEvent.click(screen.getByRole('button', { name: /^send$/i }))
-      // Card 0 is pending — card 1 still shows Transfer but it should be disabled
+      // Card 0 is pending (shows "Sending…") — only card 1's Transfer button remains
       const transferBtns = screen.getAllByRole('button', { name: /^transfer$/i })
+      expect(transferBtns).toHaveLength(1)
       expect(transferBtns[0]).toBeDisabled()
     })
 
