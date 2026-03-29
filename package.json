@@ -11,8 +11,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.3",
+    "@vercel/blob": "^2.3.2",
     "bs58": "^6.0.0",
     "next": "14.2.35",
     "react": "^18",

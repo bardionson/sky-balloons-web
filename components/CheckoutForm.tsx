@@ -6,6 +6,7 @@ import { CheckoutWidget, ThirdwebProvider } from 'thirdweb/react'
 import WalletButtons from './WalletButtons'
 import MintSuccess from './MintSuccess'
 import type { ThirdwebPaymentConfig } from '@/lib/payment/thirdweb'
+import { PROJECT_NAME } from '@/lib/project-config'
 
 type Phase = 'form' | 'submitting' | 'payment' | 'success' | 'error'
 
@@ -39,7 +40,7 @@ function ThirdwebCheckout({
         purchaseData={{ orderId: config.orderId }}
         paymentMethods={['crypto', 'card']}
         theme="dark"
-        name="Balloons in the Sky NFT"
+        name={`${PROJECT_NAME} NFT`}
         onSuccess={onSuccess}
       />
     </div>

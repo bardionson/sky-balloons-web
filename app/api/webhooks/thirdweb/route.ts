@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPublicClient, http } from 'viem'
 import { mainnet } from 'viem/chains'
-import { serverClient } from '@/lib/db/server'
+import { sql } from '@/lib/db/server'
 import { paymentProvider } from '@/lib/payment'
 import { mintOnChain } from '@/lib/chain/mint'
 
@@ -36,56 +36,54 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const db = serverClient()
-
-    await db.from('webhook_events').insert({
-      provider: 'thirdweb',
-      event_type: event.type,
-      order_id: event.orderId || null,
-      payload: parsedBody,
-      processed: false,
-    })
+    await sql`
+      INSERT INTO webhook_events (provider, event_type, order_id, payload, processed)
+      VALUES ('thirdweb', ${event.type}, ${event.orderId || null}, ${JSON.stringify(parsedBody)}, false)
+    `
 
     if (event.type === 'payment.succeeded' && event.orderId) {
-      // Look up the mint and collector to get recipient address + token URI
-      const { data: mint } = await db
-        .from('mints')
-        .select('*, collectors(email, wallet_address)')
-        .eq('order_id', event.orderId)
-        .single()
+      // Look up the mint and collector via JOIN to get recipient address + token URI
+      const rows = await sql`
+        SELECT m.*, c.email AS collector_email, c.wallet_address AS collector_wallet_address
+        FROM mints m
+        LEFT JOIN collectors c ON m.collector_id = c.id
+        WHERE m.order_id = ${event.orderId}
+        LIMIT 1
+      ` as Record<string, unknown>[]
+
+      const mint = rows[0]
 
       if (mint && mint.status !== 'minted') {
-        await db.from('mints').update({ status: 'minting' }).eq('order_id', event.orderId)
+        await sql`UPDATE mints SET status = 'minting' WHERE order_id = ${event.orderId}`
 
         try {
-          const collector = Array.isArray(mint.collectors)
-            ? mint.collectors[0]
-            : mint.collectors
-
           const rawAddress: string =
-            collector?.wallet_address ??
+            (mint.collector_wallet_address as string | null) ??
             (() => { throw new Error(`No wallet address for mint ${mint.id} — wallet_address required`) })()
 
           const recipientAddress = await resolveAddress(rawAddress)
 
           const { buildMetadataUri } = await import('@/lib/metadata')
-          const uri = buildMetadataUri(mint)
+          const uri = buildMetadataUri(mint as never)
 
           const { tokenId, txHash } = await mintOnChain(recipientAddress, uri)
 
-          await db
-            .from('mints')
-            .update({ status: 'minted', token_id: tokenId, tx_hash: txHash })
-            .eq('order_id', event.orderId)
+          await sql`
+            UPDATE mints
+            SET status = 'minted', token_id = ${tokenId}, tx_hash = ${txHash}
+            WHERE order_id = ${event.orderId}
+          `
 
-          await db.from('webhook_events').update({ processed: true }).eq('order_id', event.orderId)
+          await sql`
+            UPDATE webhook_events SET processed = true WHERE order_id = ${event.orderId}
+          `
         } catch (mintErr) {
           console.error('[webhook/thirdweb] Mint failed:', mintErr)
-          await db.from('mints').update({ status: 'failed' }).eq('order_id', event.orderId)
+          await sql`UPDATE mints SET status = 'failed' WHERE order_id = ${event.orderId}`
         }
       }
     } else if (event.type === 'delivery.failed' && event.orderId) {
-      await db.from('mints').update({ status: 'failed' }).eq('order_id', event.orderId)
+      await sql`UPDATE mints SET status = 'failed' WHERE order_id = ${event.orderId}`
     }
 
     return NextResponse.json({ received: true })

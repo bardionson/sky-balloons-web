@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { serverClient } from '@/lib/db/server'
+import { sql } from '@/lib/db/server'
 import { paymentProvider } from '@/lib/payment'
 
 export async function GET(req: NextRequest) {
@@ -14,15 +14,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const db = serverClient()
-
   // Find all mints that are in-flight but not yet completed
-  const { data: mints, error } = await db
-    .from('mints')
-    .select('id, order_id')
-    .in('status', ['ordered', 'paid', 'minting'])
-
-  if (error || !mints) {
+  let mints: { id: string; order_id: string | null }[]
+  try {
+    mints = await sql`
+      SELECT id, order_id FROM mints
+      WHERE status IN ('ordered', 'paid', 'minting')
+    ` as { id: string; order_id: string | null }[]
+  } catch (err) {
+    console.error('[cron/check-orders] DB error:', err)
     return NextResponse.json({ error: 'DB error' }, { status: 500 })
   }
 
@@ -32,16 +32,17 @@ export async function GET(req: NextRequest) {
     try {
       const order = await paymentProvider.getOrder(mint.order_id)
       if (order.status === 'completed') {
-        const { error: updateErr } = await db
-          .from('mints')
-          .update({ status: 'minted', token_id: order.tokenId ?? null, tx_hash: order.txHash ?? null })
-          .eq('id', mint.id)
-        if (updateErr) console.error('[cron/check-orders] Failed to update mint:', updateErr)
-        else updated++
+        await sql`
+          UPDATE mints
+          SET status = 'minted',
+              token_id = ${order.tokenId ?? null},
+              tx_hash = ${order.txHash ?? null}
+          WHERE id = ${mint.id}
+        `
+        updated++
       } else if (order.status === 'failed') {
-        const { error: updateErr } = await db.from('mints').update({ status: 'failed' }).eq('id', mint.id)
-        if (updateErr) console.error('[cron/check-orders] Failed to update mint:', updateErr)
-        else updated++
+        await sql`UPDATE mints SET status = 'failed' WHERE id = ${mint.id}`
+        updated++
       }
     } catch {
       // Individual order check failure — continue with others

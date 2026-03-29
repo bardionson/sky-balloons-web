@@ -1,16 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const mockSelect = vi.hoisted(() => vi.fn())
-const mockUpdate = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/db/server', () => ({
-  serverClient: () => ({
-    from: () => ({
-      select: () => ({ in: mockSelect }),
-      update: () => ({ eq: mockUpdate }),
-    }),
-  }),
-}))
+const mockSql = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/db/server', () => ({ sql: mockSql }))
 
 const mockGetOrder = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/payment', () => ({
@@ -23,8 +15,7 @@ import { GET } from '../route'
 
 describe('GET /api/cron/check-orders', () => {
   beforeEach(() => {
-    mockSelect.mockReset()
-    mockUpdate.mockReset()
+    mockSql.mockReset()
     mockGetOrder.mockReset()
   })
 
@@ -35,7 +26,7 @@ describe('GET /api/cron/check-orders', () => {
   })
 
   it('returns 200 with no pending orders', async () => {
-    mockSelect.mockResolvedValueOnce({ data: [], error: null })
+    mockSql.mockResolvedValueOnce([]) // SELECT mints → empty
     const req = new NextRequest('http://localhost/api/cron/check-orders', {
       headers: { authorization: 'Bearer test-cron-secret' },
     })
@@ -46,20 +37,18 @@ describe('GET /api/cron/check-orders', () => {
   })
 
   it('updates mint to minted when provider reports completed', async () => {
-    mockSelect.mockResolvedValueOnce({
-      data: [{ id: 'mint-1', order_id: 'order-1' }],
-      error: null,
-    })
+    mockSql
+      .mockResolvedValueOnce([{ id: 'mint-1', order_id: 'order-1' }]) // SELECT mints
+      .mockResolvedValueOnce([]) // UPDATE mint
     mockGetOrder.mockResolvedValueOnce({ status: 'completed', orderId: 'order-1',
                                          tokenId: '5', txHash: '0xabc' })
-    mockUpdate.mockResolvedValueOnce({ error: null })
 
     const req = new NextRequest('http://localhost/api/cron/check-orders', {
       headers: { authorization: 'Bearer test-cron-secret' },
     })
     const res = await GET(req)
     expect(res.status).toBe(200)
-    expect(mockUpdate).toHaveBeenCalled()
+    expect(mockSql).toHaveBeenCalledTimes(2)
   })
 
   it('returns 500 when CRON_SECRET env var is not set', async () => {
@@ -74,23 +63,21 @@ describe('GET /api/cron/check-orders', () => {
   })
 
   it('updates mint to failed when provider reports failed', async () => {
-    mockSelect.mockResolvedValueOnce({
-      data: [{ id: 'mint-2', order_id: 'order-2' }],
-      error: null,
-    })
+    mockSql
+      .mockResolvedValueOnce([{ id: 'mint-2', order_id: 'order-2' }]) // SELECT mints
+      .mockResolvedValueOnce([]) // UPDATE mint
     mockGetOrder.mockResolvedValueOnce({ status: 'failed', orderId: 'order-2' })
-    mockUpdate.mockResolvedValueOnce({ error: null })
 
     const req = new NextRequest('http://localhost/api/cron/check-orders', {
       headers: { authorization: 'Bearer test-cron-secret' },
     })
     const res = await GET(req)
     expect(res.status).toBe(200)
-    expect(mockUpdate).toHaveBeenCalled()
+    expect(mockSql).toHaveBeenCalledTimes(2)
   })
 
   it('returns 500 when DB query fails', async () => {
-    mockSelect.mockResolvedValueOnce({ data: null, error: { message: 'db error' } })
+    mockSql.mockRejectedValueOnce(new Error('db error'))
     const req = new NextRequest('http://localhost/api/cron/check-orders', {
       headers: { authorization: 'Bearer test-cron-secret' },
     })

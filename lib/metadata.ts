@@ -1,4 +1,5 @@
 import type { InstallationSubmitBody } from './db/types'
+import { PROJECT_NAME, ARTIST_NAME, NFT_LICENSE } from './project-config'
 
 function formatImagination(imagination: number): string {
   const val = imagination / 100
@@ -14,10 +15,10 @@ function formatImagination(imagination: number): string {
  */
 export function buildMetadataUri(params: InstallationSubmitBody): string {
   const metadata = {
-    name: `Balloons in the Sky #${params.unit_number} \u2014 ${params.unique_name}`,
-    description: 'Balloons in the Sky by B\u00e5rd Ionson & Jennifer Ionson',
+    name: `${PROJECT_NAME} #${params.unit_number} \u2014 ${params.unique_name}`,
+    description: `${PROJECT_NAME} by ${ARTIST_NAME}`,
     image: `ipfs://${params.cid}`,
-    license: 'CC BY-NC 4.0',
+    license: NFT_LICENSE,
     attributes: [
       { trait_type: 'Unit Number',      value: params.unit_number },
       { trait_type: 'Seed',             value: params.seed },

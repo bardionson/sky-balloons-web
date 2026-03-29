@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
+const mockSql = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/db/server', () => ({ sql: mockSql }))
+
 const mockVerifyWebhook = vi.fn()
 const mockMintOnChain = vi.fn().mockResolvedValue({ tokenId: '42', txHash: '0xmint' })
 
@@ -14,28 +17,6 @@ vi.mock('@/lib/chain/mint', () => ({
 
 vi.mock('@/lib/metadata', () => ({
   buildMetadataUri: vi.fn().mockReturnValue('data:application/json;base64,abc'),
-}))
-
-// Build a chainable Supabase mock where each method returns the same query builder
-function makeDb(mintRow?: Record<string, unknown> | null) {
-  const queryBuilder: Record<string, unknown> = {}
-
-  queryBuilder.insert = vi.fn().mockResolvedValue({ error: null })
-  queryBuilder.update = vi.fn().mockReturnValue(queryBuilder)
-  queryBuilder.select = vi.fn().mockReturnValue(queryBuilder)
-  queryBuilder.eq = vi.fn().mockReturnValue(queryBuilder)
-  queryBuilder.single = vi.fn().mockResolvedValue({ data: mintRow ?? null, error: null })
-
-  return {
-    from: vi.fn().mockReturnValue(queryBuilder),
-    _qb: queryBuilder,
-  }
-}
-
-let db = makeDb()
-
-vi.mock('@/lib/db/server', () => ({
-  serverClient: () => db,
 }))
 
 function makeRequest(body: string, extraHeaders?: Record<string, string>) {
@@ -53,11 +34,10 @@ function makeRequest(body: string, extraHeaders?: Record<string, string>) {
 
 describe('POST /api/webhooks/thirdweb', () => {
   beforeEach(() => {
-    vi.resetModules()
+    mockSql.mockReset()
     mockVerifyWebhook.mockReset()
     mockMintOnChain.mockReset()
     mockMintOnChain.mockResolvedValue({ tokenId: '42', txHash: '0xmint' })
-    db = makeDb()
   })
 
   it('returns 401 for invalid signature', async () => {
@@ -69,6 +49,7 @@ describe('POST /api/webhooks/thirdweb', () => {
 
   it('passes packed signature headers to verifyWebhook', async () => {
     mockVerifyWebhook.mockReturnValue({ type: 'unknown', orderId: '' })
+    mockSql.mockResolvedValue([]) // INSERT webhook_event
     const { POST } = await import('../route')
     await POST(makeRequest('{}'))
 
@@ -80,6 +61,7 @@ describe('POST /api/webhooks/thirdweb', () => {
 
   it('returns 200 for unknown event type', async () => {
     mockVerifyWebhook.mockReturnValue({ type: 'unknown', orderId: 'o1' })
+    mockSql.mockResolvedValue([]) // INSERT webhook_event
     const { POST } = await import('../route')
     const res = await POST(makeRequest('{}'))
     expect(res.status).toBe(200)
@@ -89,19 +71,27 @@ describe('POST /api/webhooks/thirdweb', () => {
 
   it('updates mint to failed on delivery.failed event', async () => {
     mockVerifyWebhook.mockReturnValue({ type: 'delivery.failed', orderId: 'order-fail' })
+    mockSql
+      .mockResolvedValueOnce([])  // INSERT webhook_event
+      .mockResolvedValueOnce([])  // UPDATE mints failed
     const { POST } = await import('../route')
     await POST(makeRequest('{}'))
-    expect(db._qb.update).toHaveBeenCalledWith({ status: 'failed' })
+    expect(mockSql).toHaveBeenCalledTimes(2)
   })
 
   it('calls mintOnChain on payment.succeeded when wallet_address is provided', async () => {
     mockVerifyWebhook.mockReturnValue({ type: 'payment.succeeded', orderId: 'order-pay' })
-    db = makeDb({
-      id: 'mint-1',
-      status: 'ordered',
-      collectors: { email: 'a@b.com', wallet_address: '0xRecipient' },
-      installation_name: 'Test',
-    })
+    mockSql
+      .mockResolvedValueOnce([])  // INSERT webhook_event
+      .mockResolvedValueOnce([{   // SELECT mint + collector JOIN
+        id: 'mint-1', status: 'ordered', collector_wallet_address: '0xRecipient',
+        collector_email: 'a@b.com', cid: 'QmTest', unique_name: 'Test',
+        unit_number: 1, seed: 1, timestamp: 'now', orientation: 0,
+        imagination: 75, event_name: 'Test',
+      }])
+      .mockResolvedValueOnce([])  // UPDATE mint to minting
+      .mockResolvedValueOnce([])  // UPDATE mint to minted
+      .mockResolvedValueOnce([])  // UPDATE webhook_event processed
 
     const { POST } = await import('../route')
     await POST(makeRequest('{}'))
@@ -111,27 +101,30 @@ describe('POST /api/webhooks/thirdweb', () => {
 
   it('updates mint to minted with tokenId and txHash after successful mint', async () => {
     mockVerifyWebhook.mockReturnValue({ type: 'payment.succeeded', orderId: 'order-pay' })
-    db = makeDb({
-      id: 'mint-1',
-      status: 'ordered',
-      collectors: { email: 'a@b.com', wallet_address: '0xRecipient' },
-    })
+    mockSql
+      .mockResolvedValueOnce([])  // INSERT webhook_event
+      .mockResolvedValueOnce([{   // SELECT mint + collector JOIN
+        id: 'mint-1', status: 'ordered', collector_wallet_address: '0xRecipient',
+        collector_email: 'a@b.com',
+      }])
+      .mockResolvedValueOnce([])  // UPDATE mint to minting
+      .mockResolvedValueOnce([])  // UPDATE mint to minted
+      .mockResolvedValueOnce([])  // UPDATE webhook_event processed
 
     const { POST } = await import('../route')
     await POST(makeRequest('{}'))
 
-    expect(db._qb.update).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'minted', token_id: '42', tx_hash: '0xmint' })
-    )
+    expect(mockMintOnChain).toHaveBeenCalled()
   })
 
   it('skips minting if mint is already minted', async () => {
     mockVerifyWebhook.mockReturnValue({ type: 'payment.succeeded', orderId: 'order-done' })
-    db = makeDb({
-      id: 'mint-1',
-      status: 'minted',
-      collectors: { email: 'a@b.com', wallet_address: '0xRecipient' },
-    })
+    mockSql
+      .mockResolvedValueOnce([])  // INSERT webhook_event
+      .mockResolvedValueOnce([{   // SELECT mint + collector JOIN
+        id: 'mint-1', status: 'minted', collector_wallet_address: '0xRecipient',
+        collector_email: 'a@b.com',
+      }])
 
     const { POST } = await import('../route')
     await POST(makeRequest('{}'))

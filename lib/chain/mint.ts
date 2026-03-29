@@ -1,6 +1,9 @@
 import { createWalletClient, createPublicClient, http, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { sepolia } from 'viem/chains'
+import { sepolia, mainnet } from 'viem/chains'
+
+const CHAIN_ID = Number(process.env.NEXT_PUBLIC_PAYMENT_CHAIN_ID ?? '11155111')
+const chain = CHAIN_ID === 1 ? mainnet : sepolia
 
 const NFT_ABI = parseAbi([
   'function mint(address to, string memory _uri) external',
@@ -23,12 +26,12 @@ export async function mintOnChain(
 
   const walletClient = createWalletClient({
     account,
-    chain: sepolia,
+    chain,
     transport: http(),
   })
 
   const publicClient = createPublicClient({
-    chain: sepolia,
+    chain,
     transport: http(),
   })
 

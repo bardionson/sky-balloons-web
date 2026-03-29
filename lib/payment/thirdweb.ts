@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import type { PaymentProvider, CreateOrderParams, OrderResult, ProviderWebhookEvent } from './provider'
+import { getMintPriceEth } from '@/lib/chain/price'
 
 /**
  * Thirdweb Pay adapter.
@@ -41,20 +42,17 @@ export class ThirdwebAdapter implements PaymentProvider {
     return Number(process.env.NEXT_PUBLIC_PAYMENT_CHAIN_ID ?? '11155111')
   }
 
-  private get priceEth(): string {
-    return process.env.PAYMENT_PRICE_ETH ?? '0.02'
-  }
-
   async createOrder(params: CreateOrderParams): Promise<OrderResult> {
     // No server-side session needed for Thirdweb Pay — we generate our own orderId.
     // The frontend uses the clientSecret config to render the BuyWidget.
-    const orderId = crypto.randomUUID()
+    const orderId  = crypto.randomUUID()
+    const priceEth = await getMintPriceEth()
 
     const config: ThirdwebPaymentConfig = {
       orderId,
       treasuryAddress: this.treasuryAddress,
       chainId: this.chainId,
-      priceEth: this.priceEth,
+      priceEth,
     }
 
     // Store recipient info in the config so webhook handler can mint to right address

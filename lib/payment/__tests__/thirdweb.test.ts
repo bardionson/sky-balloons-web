@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ThirdwebAdapter } from '../thirdweb'
 
+vi.mock('@/lib/chain/price', () => ({
+  getMintPriceEth: vi.fn().mockResolvedValue('0.05'),
+}))
+
 const WEBHOOK_SECRET = 'whsec_thirdweb_test'
 const TREASURY = '0xTreasuryWallet'
 
 vi.stubEnv('THIRDWEB_WEBHOOK_SECRET', WEBHOOK_SECRET)
 vi.stubEnv('TREASURY_WALLET_ADDRESS', TREASURY)
 vi.stubEnv('NEXT_PUBLIC_PAYMENT_CHAIN_ID', '11155111')
-vi.stubEnv('PAYMENT_PRICE_ETH', '0.02')
 
 describe('ThirdwebAdapter.createOrder', () => {
   it('returns a UUID orderId', async () => {
@@ -24,7 +27,7 @@ describe('ThirdwebAdapter.createOrder', () => {
     const config = JSON.parse(result.clientSecret!)
     expect(config.treasuryAddress).toBe(TREASURY)
     expect(config.chainId).toBe(11155111)
-    expect(config.priceEth).toBe('0.02')
+    expect(config.priceEth).toBe('0.05')
   })
 
   it('includes orderId in clientSecret', async () => {
@@ -50,6 +53,14 @@ describe('ThirdwebAdapter.createOrder', () => {
     const adapter = new ThirdwebAdapter()
     const result = await adapter.createOrder({ recipientEmail: 'a@b.com', uri: 'u', priceUsd: 50 })
     expect(result.status).toBe('awaiting-payment')
+  })
+
+  it('throws when on-chain mint price is zero', async () => {
+    const { getMintPriceEth } = await import('@/lib/chain/price')
+    vi.mocked(getMintPriceEth).mockRejectedValueOnce(new Error('Mint price is not set on-chain'))
+    const adapter = new ThirdwebAdapter()
+    await expect(adapter.createOrder({ recipientEmail: 'a@b.com', uri: 'u', priceUsd: 50 }))
+      .rejects.toThrow('Mint price is not set on-chain')
   })
 })
 

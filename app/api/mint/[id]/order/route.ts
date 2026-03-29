@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { serverClient } from '@/lib/db/server'
+import { sql } from '@/lib/db/server'
 import { paymentProvider } from '@/lib/payment'
 import { buildMetadataUri } from '@/lib/metadata'
 import type { InstallationSubmitBody } from '@/lib/db/types'
@@ -21,18 +21,16 @@ export async function POST(
     return NextResponse.json({ error: 'email and name are required' }, { status: 400 })
   }
 
-  const db = serverClient()
-
   // Fetch mint — check status before creating order
-  const { data: mint, error: mintError } = await db
-    .from('mints')
-    .select('*')
-    .eq('id', params.id)
-    .single()
+  const mintRows = await sql`
+    SELECT * FROM mints WHERE id = ${params.id}
+  ` as Record<string, unknown>[]
 
-  if (mintError || !mint) {
+  if (!mintRows[0]) {
     return NextResponse.json({ error: 'Mint not found' }, { status: 404 })
   }
+
+  const mint = mintRows[0]
 
   // Guard against double-submission
   if (mint.status !== 'pending') {
@@ -40,30 +38,32 @@ export async function POST(
   }
 
   // Fetch current price from settings
-  const { data: setting } = await db
-    .from('settings')
-    .select('value')
-    .eq('key', 'mint_price_usd')
-    .single()
-  const priceUsd = parseFloat(setting?.value ?? '50.00')
+  const settingRows = await sql`
+    SELECT value FROM settings WHERE key = 'mint_price_usd'
+  ` as { value: string }[]
+  const priceUsd = parseFloat(settingRows[0]?.value ?? '50.00')
 
   // Upsert collector (same email = same collector record)
-  const { data: collector, error: collectorError } = await db
-    .from('collectors')
-    .upsert({
-      email: body.email,
-      name: body.name,
-      ...(body.wallet_address && { wallet_address: body.wallet_address }),
-      ...(body.street_address && { street_address: body.street_address }),
-      ...(body.city && { city: body.city }),
-      ...(body.state && { state: body.state }),
-      ...(body.postal_code && { postal_code: body.postal_code }),
-      ...(body.country && { country: body.country }),
-    }, { onConflict: 'email' })
-    .select('id')
-    .single()
+  const collectorRows = await sql`
+    INSERT INTO collectors (email, name, wallet_address, street_address, city, state, postal_code, country)
+    VALUES (
+      ${body.email}, ${body.name},
+      ${body.wallet_address ?? null}, ${body.street_address ?? null},
+      ${body.city ?? null}, ${body.state ?? null},
+      ${body.postal_code ?? null}, ${body.country ?? null}
+    )
+    ON CONFLICT (email) DO UPDATE SET
+      name = EXCLUDED.name,
+      wallet_address = COALESCE(EXCLUDED.wallet_address, collectors.wallet_address),
+      street_address = COALESCE(EXCLUDED.street_address, collectors.street_address),
+      city           = COALESCE(EXCLUDED.city, collectors.city),
+      state          = COALESCE(EXCLUDED.state, collectors.state),
+      postal_code    = COALESCE(EXCLUDED.postal_code, collectors.postal_code),
+      country        = COALESCE(EXCLUDED.country, collectors.country)
+    RETURNING id
+  ` as { id: string }[]
 
-  if (collectorError || !collector) {
+  if (!collectorRows[0]) {
     return NextResponse.json({ error: 'Failed to save collector' }, { status: 500 })
   }
 
@@ -85,10 +85,11 @@ export async function POST(
   }
 
   // Update mint record with order ID and collector
-  await db
-    .from('mints')
-    .update({ status: 'ordered', order_id: order.orderId, collector_id: collector.id })
-    .eq('id', params.id)
+  await sql`
+    UPDATE mints
+    SET status = 'ordered', order_id = ${order.orderId}, collector_id = ${collectorRows[0].id}
+    WHERE id = ${params.id}
+  `
 
   return NextResponse.json({ orderId: order.orderId, clientSecret: order.clientSecret })
 }
