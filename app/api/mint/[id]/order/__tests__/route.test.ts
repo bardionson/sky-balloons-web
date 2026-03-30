@@ -34,8 +34,18 @@ describe('POST /api/mint/[id]/order', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 409 when mint is already ordered', async () => {
-    mockSql.mockResolvedValueOnce([{ id: MINT_ID, status: 'ordered', order_id: 'existing-order' }])
+  it('returns 409 when mint is minting', async () => {
+    mockSql.mockResolvedValueOnce([{ id: MINT_ID, status: 'minting' }])
+    const req = new NextRequest(`http://localhost/api/mint/${MINT_ID}/order`, {
+      method: 'POST',
+      body: JSON.stringify(VALID_BODY),
+    })
+    const res = await POST(req, { params: { id: MINT_ID } })
+    expect(res.status).toBe(409)
+  })
+
+  it('returns 409 when mint is already minted', async () => {
+    mockSql.mockResolvedValueOnce([{ id: MINT_ID, status: 'minted' }])
     const req = new NextRequest(`http://localhost/api/mint/${MINT_ID}/order`, {
       method: 'POST',
       body: JSON.stringify(VALID_BODY),
@@ -57,7 +67,7 @@ describe('POST /api/mint/[id]/order', () => {
   it('returns orderId and clientSecret on success', async () => {
     mockSql
       .mockResolvedValueOnce([{
-        id: MINT_ID, status: 'pending', cid: 'QmTest', unique_name: 'Test',
+        id: MINT_ID, status: 'pending', cid: 'QmTest', image_url: null, ipfs_status: 'done', unique_name: 'Test',
         unit_number: 1, seed: 1, timestamp: 'now', orientation: 0,
         imagination: 75, event_name: 'Test', type: 'Standard',
         pixel_dimensions: '1920x1080',

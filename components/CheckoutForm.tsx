@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createThirdwebClient, defineChain } from 'thirdweb'
+import { defineChain, NATIVE_TOKEN_ADDRESS } from 'thirdweb'
 import { CheckoutWidget, ThirdwebProvider } from 'thirdweb/react'
-import WalletButtons from './WalletButtons'
+import WalletConnectSection, { thirdwebClient } from './WalletConnectSection'
 import MintSuccess from './MintSuccess'
 import type { ThirdwebPaymentConfig } from '@/lib/payment/thirdweb'
 import { PROJECT_NAME } from '@/lib/project-config'
@@ -16,10 +16,6 @@ interface Props {
   priceUsd: string
   unitNumber?: number
 }
-
-const thirdwebClient = createThirdwebClient({
-  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID ?? '',
-})
 
 function ThirdwebCheckout({
   config,
@@ -35,12 +31,13 @@ function ThirdwebCheckout({
       <CheckoutWidget
         client={thirdwebClient}
         chain={chain}
+        token={{ address: NATIVE_TOKEN_ADDRESS }}
         amount={config.priceEth}
         seller={config.treasuryAddress as `0x${string}`}
         purchaseData={{ orderId: config.orderId }}
         paymentMethods={['crypto', 'card']}
         theme="dark"
-        name={`${PROJECT_NAME} NFT`}
+        name={`${PROJECT_NAME} Digital Art Artifact`}
         onSuccess={onSuccess}
       />
     </div>
@@ -66,6 +63,10 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!wallet) {
+      setErrorMsg('Please connect a wallet first (Step 1 above) — click the button to create a free wallet with your email, no download needed')
+      return
+    }
     setPhase('submitting')
     setErrorMsg(null)
 
@@ -161,13 +162,56 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
 
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-sm">
-      <WalletButtons mintUrl={mintUrl} />
-
       <form
         aria-label="Checkout form"
         onSubmit={handleSubmit}
         className="flex flex-col gap-4 w-full"
       >
+        {/* Wallet — first step, most important */}
+        <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
+          <p className="text-sm font-medium text-white">
+            {wallet ? '✓ Wallet connected' : 'Step 1 — Connect or create your wallet'}
+          </p>
+          <p className="text-xs text-white/50">
+            {wallet
+              ? <span className="font-mono truncate block">{wallet.slice(0, 6)}…{wallet.slice(-4)}</span>
+              : 'No crypto experience needed — use your email to create a free wallet instantly, or connect an existing one.'}
+          </p>
+          <WalletConnectSection onAddress={(addr) => setWallet(addr)} />
+
+          {/* Mobile-only deep links — open page inside wallet app browser */}
+          {!wallet && (
+            <div className="md:hidden flex gap-2 mt-1">
+              <a
+                href={`https://metamask.app.link/dapp/${mintUrl.replace(/^https?:\/\//, '')}`}
+                className="flex-1 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs text-white/70 text-center hover:bg-white/10"
+              >
+                🦊 Open in MetaMask
+              </a>
+              <a
+                href={`https://go.cb-wallet.com/dapp?url=${encodeURIComponent(mintUrl)}`}
+                className="flex-1 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs text-white/70 text-center hover:bg-white/10"
+              >
+                🔵 Open in Coinbase
+              </a>
+            </div>
+          )}
+
+          {!wallet && (
+            <label className="flex flex-col gap-1 text-xs text-white/40 mt-1">
+              Or paste an existing wallet address
+              <input
+                id="wallet"
+                type="text"
+                value={wallet}
+                onChange={e => setWallet(e.target.value)}
+                placeholder="0x..."
+                className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-white placeholder-white/30 outline-none focus:border-white/30 font-mono text-sm"
+              />
+            </label>
+          )}
+        </div>
+
         <label className="flex flex-col gap-1 text-sm text-white/80">
           Email *
           <input
@@ -191,18 +235,6 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
             onChange={e => setName(e.target.value)}
             placeholder="Your full name"
             className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-white/50"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          Wallet address <span className="text-white/30">(optional)</span>
-          <input
-            id="wallet"
-            type="text"
-            value={wallet}
-            onChange={e => setWallet(e.target.value)}
-            placeholder="0x..."
-            className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-white/50 font-mono text-sm"
           />
         </label>
 
@@ -246,6 +278,10 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
               </label>
             </div>
           </div>
+        )}
+
+        {errorMsg && phase === 'form' && (
+          <p className="text-red-400 text-sm text-center">{errorMsg}</p>
         )}
 
         <button

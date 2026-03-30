@@ -32,9 +32,9 @@ export async function POST(
 
   const mint = mintRows[0]
 
-  // Guard against double-submission
-  if (mint.status !== 'pending') {
-    return NextResponse.json({ error: 'Mint already in progress or completed' }, { status: 409 })
+  // Block retry only for terminal/in-flight states; allow retry from ordered/failed
+  if (['minting', 'minted', 'printed'].includes(mint.status as string)) {
+    return NextResponse.json({ error: 'Mint already completed' }, { status: 409 })
   }
 
   // Fetch current price from settings

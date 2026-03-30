@@ -13,7 +13,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${PROJECT_NAME} — Mint`,
-    description: `Mint your generative NFT by ${ARTIST_NAME}`,
+    description: `Collect a digital art artifact by ${ARTIST_NAME}`,
   }
 }
 
@@ -42,10 +42,14 @@ export default async function MintPage({ params }: Props) {
       </div>
 
       {/* Artwork */}
-      <div className="mb-6 rounded-xl overflow-hidden shadow-2xl max-w-xs w-full aspect-square bg-white/5">
+      <div className={`mb-6 rounded-xl overflow-hidden shadow-2xl w-full bg-white/5 ${
+        m.orientation === 1
+          ? 'max-w-lg aspect-video'
+          : 'max-w-xs aspect-[9/16]'
+      }`}>
         <IpfsImage
           cid={m.cid}
-          alt={`Balloon #${m.unit_number} — ${m.unique_name}`}
+          alt={`${PROJECT_NAME} #${m.unit_number} — ${m.unique_name}`}
           className="w-full h-full object-cover"
         />
       </div>
@@ -53,9 +57,10 @@ export default async function MintPage({ params }: Props) {
       {/* Metadata */}
       <div className="mb-8 text-center">
         <p className="text-white text-lg font-medium">
-          #{m.unit_number} &mdash; {m.unique_name}
+          {PROJECT_NAME} #{m.unit_number}
         </p>
-        <p className="text-white/50 text-sm mt-1">
+        <p className="text-white/50 text-sm mt-1">{m.unique_name}</p>
+        <p className="text-white/30 text-xs mt-1">
           {m.event_name} &middot; {m.timestamp}
         </p>
       </div>
@@ -63,8 +68,8 @@ export default async function MintPage({ params }: Props) {
       {/* Already minted — show success view */}
       {m.status === 'minted' || m.status === 'printed' ? (
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="text-4xl">🎈</div>
-          <p className="text-white/60 text-sm">This balloon has already been minted.</p>
+          <div className="text-4xl">◈</div>
+          <p className="text-white/60 text-sm">This digital art artifact has already been collected.</p>
           {m.token_id && (
             <a
               href={`${EXPLORER_BASE}/token/${process.env.NEXT_PUBLIC_BALLOONS_NFT_ADDRESS}?a=${m.token_id}`}

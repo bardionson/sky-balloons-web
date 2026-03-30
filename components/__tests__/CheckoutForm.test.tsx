@@ -7,6 +7,14 @@ import CheckoutForm from '../CheckoutForm'
 vi.mock('thirdweb', () => ({
   createThirdwebClient: () => ({}),
   defineChain: (id: number) => ({ id }),
+  NATIVE_TOKEN_ADDRESS: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+}))
+
+vi.mock('../WalletConnectSection', () => ({
+  thirdwebClient: {},
+  default: ({ onAddress }: { onAddress: (a: string) => void }) => (
+    <button type="button" onClick={() => onAddress('0xMockWallet123')}>Connect Wallet</button>
+  ),
 }))
 
 vi.mock('thirdweb/react', () => ({
@@ -57,6 +65,18 @@ describe('CheckoutForm', () => {
     expect(screen.getByLabelText(/street/i)).toBeInTheDocument()
   })
 
+  it('blocks submission when no wallet address is provided', async () => {
+    render(<CheckoutForm {...BASE_PROPS} />)
+    await userEvent.type(screen.getByLabelText(/email/i), 'test@test.com')
+    await userEvent.type(screen.getByLabelText(/name/i), 'Test User')
+    fireEvent.submit(screen.getByRole('form'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/please connect a wallet first/i)).toBeInTheDocument()
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it('shows error message when order creation fails', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -66,6 +86,7 @@ describe('CheckoutForm', () => {
     render(<CheckoutForm {...BASE_PROPS} />)
     await userEvent.type(screen.getByLabelText(/email/i), 'test@test.com')
     await userEvent.type(screen.getByLabelText(/name/i), 'Test User')
+    await userEvent.click(screen.getByRole('button', { name: /connect wallet/i }))
     fireEvent.submit(screen.getByRole('form'))
 
     await waitFor(() => {
@@ -82,6 +103,7 @@ describe('CheckoutForm', () => {
     render(<CheckoutForm {...BASE_PROPS} />)
     await userEvent.type(screen.getByLabelText(/email/i), 'buyer@test.com')
     await userEvent.type(screen.getByLabelText(/name/i), 'Buyer Name')
+    await userEvent.click(screen.getByRole('button', { name: /connect wallet/i }))
     fireEvent.submit(screen.getByRole('form'))
 
     await waitFor(() => {
@@ -98,6 +120,7 @@ describe('CheckoutForm', () => {
     render(<CheckoutForm {...BASE_PROPS} />)
     await userEvent.type(screen.getByLabelText(/email/i), 'buyer@test.com')
     await userEvent.type(screen.getByLabelText(/name/i), 'Buyer Name')
+    await userEvent.click(screen.getByRole('button', { name: /connect wallet/i }))
     fireEvent.submit(screen.getByRole('form'))
 
     await waitFor(() => {
@@ -114,6 +137,7 @@ describe('CheckoutForm', () => {
     render(<CheckoutForm {...BASE_PROPS} />)
     await userEvent.type(screen.getByLabelText(/email/i), 'buyer@test.com')
     await userEvent.type(screen.getByLabelText(/name/i), 'Buyer Name')
+    await userEvent.click(screen.getByRole('button', { name: /connect wallet/i }))
     fireEvent.submit(screen.getByRole('form'))
 
     await waitFor(() => {

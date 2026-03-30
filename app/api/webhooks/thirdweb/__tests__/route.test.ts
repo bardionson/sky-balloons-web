@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
+vi.stubEnv('THIRDWEB_SECRET_KEY', 'test-secret-key')
+
 const mockSql = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/db/server', () => ({ sql: mockSql }))
 
@@ -13,6 +15,11 @@ vi.mock('@/lib/payment', () => ({
 
 vi.mock('@/lib/chain/mint', () => ({
   mintOnChain: mockMintOnChain,
+}))
+
+vi.mock('thirdweb', () => ({
+  createThirdwebClient: () => ({}),
+  getUser: vi.fn().mockResolvedValue({ walletAddress: '0xInAppWallet' }),
 }))
 
 vi.mock('@/lib/metadata', () => ({

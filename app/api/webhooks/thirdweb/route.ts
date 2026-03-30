@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPublicClient, http } from 'viem'
 import { mainnet } from 'viem/chains'
+import { createThirdwebClient, getUser } from 'thirdweb'
 import { sql } from '@/lib/db/server'
 import { paymentProvider } from '@/lib/payment'
 import { mintOnChain } from '@/lib/chain/mint'
+
+const thirdwebServerClient = createThirdwebClient({
+  secretKey: process.env.THIRDWEB_SECRET_KEY ?? '',
+})
 
 async function resolveAddress(addressOrEns: string): Promise<string> {
   if (addressOrEns.startsWith('0x')) return addressOrEns
@@ -12,6 +17,22 @@ async function resolveAddress(addressOrEns: string): Promise<string> {
   const resolved = await client.getEnsAddress({ name: addressOrEns })
   if (!resolved) throw new Error(`Could not resolve ENS name: ${addressOrEns}`)
   return resolved
+}
+
+async function resolveRecipient(
+  walletAddress: string | null,
+  email: string | null,
+): Promise<string> {
+  if (walletAddress) return resolveAddress(walletAddress)
+
+  // No explicit wallet — look up the buyer's Thirdweb in-app wallet by email
+  if (!email) throw new Error('No wallet address and no email — cannot determine mint recipient')
+
+  const user = await getUser({ client: thirdwebServerClient, email })
+  if (!user?.walletAddress) {
+    throw new Error(`No in-app wallet found for email ${email} — user has not completed checkout`)
+  }
+  return user.walletAddress
 }
 
 export async function POST(req: NextRequest) {
@@ -57,11 +78,10 @@ export async function POST(req: NextRequest) {
         await sql`UPDATE mints SET status = 'minting' WHERE order_id = ${event.orderId}`
 
         try {
-          const rawAddress: string =
-            (mint.collector_wallet_address as string | null) ??
-            (() => { throw new Error(`No wallet address for mint ${mint.id} — wallet_address required`) })()
-
-          const recipientAddress = await resolveAddress(rawAddress)
+          const recipientAddress = await resolveRecipient(
+            mint.collector_wallet_address as string | null,
+            mint.collector_email as string | null,
+          )
 
           const { buildMetadataUri } = await import('@/lib/metadata')
           const uri = buildMetadataUri(mint as never)
