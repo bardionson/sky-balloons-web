@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { serverClient } from '@/lib/db/server'
+import { sql } from '@/lib/db/server'
 
 export async function GET(_req: NextRequest) {
-  const db = serverClient()
-  const { data, error } = await db
-    .from('settings')
-    .select('value')
-    .eq('key', 'mint_price_usd')
-    .single()
+  const rows = await sql`
+    SELECT value FROM settings WHERE key = 'mint_price_usd'
+  ` as { value: string }[]
 
-  const price = (!error && data) ? (data.value ?? '50.00') : '50.00'
+  const price = rows[0]?.value ?? '50.00'
   return NextResponse.json({ price_usd: price })
 }

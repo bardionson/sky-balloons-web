@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { serverClient } from '@/lib/db/server'
+import { sql } from '@/lib/db/server'
 import type { InstallationSubmitBody } from '@/lib/db/types'
 
 const REQUIRED_FIELDS: (keyof InstallationSubmitBody)[] = [
@@ -31,33 +31,28 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const db = serverClient()
-  const { data, error } = await db
-    .from('mints')
-    .insert({
-      cid: body.cid,
-      unique_name: body.unique_name,
-      unit_number: body.unit_number,
-      seed: body.seed,
-      timestamp: body.timestamp,
-      orientation: body.orientation,
-      imagination: body.imagination,
-      event_name: body.event_name,
-      type: body.type ?? 'Standard',
-      pixel_dimensions: body.pixel_dimensions ?? '1920x1080',
-      status: 'pending',
-    })
-    .select('id')
-    .single()
+  let mint: { id: string } | undefined
+  try {
+    const rows = await sql`
+      INSERT INTO mints (cid, unique_name, unit_number, seed, timestamp, orientation, imagination, event_name, type, pixel_dimensions, status)
+      VALUES (${body.cid}, ${body.unique_name}, ${body.unit_number}, ${body.seed},
+              ${body.timestamp}, ${body.orientation}, ${body.imagination}, ${body.event_name},
+              ${body.type ?? 'Standard'}, ${body.pixel_dimensions ?? '1920x1080'}, 'pending')
+      RETURNING id
+    ` as { id: string }[]
+    mint = rows[0]
+  } catch (err) {
+    console.error('mint insert error:', err)
+    return NextResponse.json({ error: 'Database error' }, { status: 500 })
+  }
 
-  if (error || !data) {
-    console.error('mint insert error:', error)
+  if (!mint) {
     return NextResponse.json({ error: 'Database error' }, { status: 500 })
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
   return NextResponse.json({
-    mint_id: data.id,
-    mint_url: `${appUrl}/mint/${data.id}`,
+    mint_id: mint.id,
+    mint_url: `${appUrl}/mint/${mint.id}`,
   })
 }

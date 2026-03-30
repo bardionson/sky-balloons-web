@@ -1,21 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-// Mock Supabase server client
-const mockInsert = vi.fn()
-const mockSelect = vi.fn()
-const mockSingle = vi.fn()
-vi.mock('@/lib/db/server', () => ({
-  serverClient: () => ({
-    from: () => ({
-      insert: mockInsert.mockReturnValue({
-        select: mockSelect.mockReturnValue({
-          single: mockSingle,
-        }),
-      }),
-    }),
-  }),
-}))
+const mockSql = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/db/server', () => ({ sql: mockSql }))
 
 vi.stubEnv('INSTALLATION_API_KEY', 'test-api-key')
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://example.com')
@@ -35,7 +22,7 @@ const VALID_BODY = {
 
 describe('POST /api/installation/submit', () => {
   beforeEach(() => {
-    mockSingle.mockReset()
+    mockSql.mockReset()
   })
 
   it('returns 401 when Authorization header is missing', async () => {
@@ -68,10 +55,7 @@ describe('POST /api/installation/submit', () => {
   })
 
   it('returns mint_id and mint_url on success', async () => {
-    mockSingle.mockResolvedValueOnce({
-      data: { id: 'mint-uuid-123' },
-      error: null,
-    })
+    mockSql.mockResolvedValueOnce([{ id: 'mint-uuid-123' }])
 
     const req = new NextRequest('http://localhost/api/installation/submit', {
       method: 'POST',
@@ -87,10 +71,7 @@ describe('POST /api/installation/submit', () => {
   })
 
   it('returns 500 when database insert fails', async () => {
-    mockSingle.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'DB error' },
-    })
+    mockSql.mockRejectedValueOnce(new Error('DB error'))
 
     const req = new NextRequest('http://localhost/api/installation/submit', {
       method: 'POST',

@@ -3,10 +3,27 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CheckoutForm from '../CheckoutForm'
 
-// Mock Crossmint SDK
-vi.mock('@crossmint/client-sdk-react-ui', () => ({
-  CrossmintProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  CrossmintEmbeddedCheckout: () => <div data-testid="crossmint-checkout">Checkout</div>,
+// Mock Thirdweb SDK
+vi.mock('thirdweb', () => ({
+  createThirdwebClient: () => ({}),
+  defineChain: (id: number) => ({ id }),
+  NATIVE_TOKEN_ADDRESS: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+}))
+
+vi.mock('../WalletConnectSection', () => ({
+  thirdwebClient: {},
+  default: ({ onAddress }: { onAddress: (a: string) => void }) => (
+    <button type="button" onClick={() => onAddress('0xMockWallet123')}>Connect Wallet</button>
+  ),
+}))
+
+vi.mock('thirdweb/react', () => ({
+  ThirdwebProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  CheckoutWidget: ({ purchaseData }: { purchaseData: Record<string, unknown> }) => (
+    <div data-testid="thirdweb-widget" data-order-id={purchaseData?.orderId}>
+      Thirdweb Pay
+    </div>
+  ),
 }))
 
 const mockFetch = vi.fn()
@@ -17,6 +34,15 @@ const BASE_PROPS = {
   mintUrl: 'https://example.com/mint/mint-123',
   priceUsd: '50.00',
 }
+
+const VALID_CLIENT_SECRET = JSON.stringify({
+  orderId: 'order-1',
+  treasuryAddress: '0xTreasury',
+  chainId: 11155111,
+  priceEth: '0.02',
+  recipientEmail: 'buyer@test.com',
+  recipientWallet: null,
+})
 
 describe('CheckoutForm', () => {
   beforeEach(() => mockFetch.mockReset())
@@ -39,6 +65,18 @@ describe('CheckoutForm', () => {
     expect(screen.getByLabelText(/street/i)).toBeInTheDocument()
   })
 
+  it('blocks submission when no wallet address is provided', async () => {
+    render(<CheckoutForm {...BASE_PROPS} />)
+    await userEvent.type(screen.getByLabelText(/email/i), 'test@test.com')
+    await userEvent.type(screen.getByLabelText(/name/i), 'Test User')
+    fireEvent.submit(screen.getByRole('form'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/please connect a wallet first/i)).toBeInTheDocument()
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it('shows error message when order creation fails', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -48,6 +86,7 @@ describe('CheckoutForm', () => {
     render(<CheckoutForm {...BASE_PROPS} />)
     await userEvent.type(screen.getByLabelText(/email/i), 'test@test.com')
     await userEvent.type(screen.getByLabelText(/name/i), 'Test User')
+    await userEvent.click(screen.getByRole('button', { name: /connect wallet/i }))
     fireEvent.submit(screen.getByRole('form'))
 
     await waitFor(() => {
@@ -64,6 +103,7 @@ describe('CheckoutForm', () => {
     render(<CheckoutForm {...BASE_PROPS} />)
     await userEvent.type(screen.getByLabelText(/email/i), 'buyer@test.com')
     await userEvent.type(screen.getByLabelText(/name/i), 'Buyer Name')
+    await userEvent.click(screen.getByRole('button', { name: /connect wallet/i }))
     fireEvent.submit(screen.getByRole('form'))
 
     await waitFor(() => {
@@ -71,25 +111,39 @@ describe('CheckoutForm', () => {
     })
   })
 
-  it('renders CrossmintEmbeddedCheckout after successful order creation', async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ orderId: 'order-1', clientSecret: 'cs_test' }),
-      })
-      // Status polling returns pending first
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ status: 'pending' }),
-      })
+  it('renders Thirdweb BuyWidget after successful order creation', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'order-1', clientSecret: VALID_CLIENT_SECRET }),
+    })
 
     render(<CheckoutForm {...BASE_PROPS} />)
     await userEvent.type(screen.getByLabelText(/email/i), 'buyer@test.com')
     await userEvent.type(screen.getByLabelText(/name/i), 'Buyer Name')
+    await userEvent.click(screen.getByRole('button', { name: /connect wallet/i }))
     fireEvent.submit(screen.getByRole('form'))
 
     await waitFor(() => {
-      expect(screen.getByTestId('crossmint-checkout')).toBeInTheDocument()
+      expect(screen.getByTestId('thirdweb-widget')).toBeInTheDocument()
+    })
+  })
+
+  it('passes orderId to BuyWidget via purchaseData', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ orderId: 'order-abc', clientSecret: VALID_CLIENT_SECRET }),
+    })
+
+    render(<CheckoutForm {...BASE_PROPS} />)
+    await userEvent.type(screen.getByLabelText(/email/i), 'buyer@test.com')
+    await userEvent.type(screen.getByLabelText(/name/i), 'Buyer Name')
+    await userEvent.click(screen.getByRole('button', { name: /connect wallet/i }))
+    fireEvent.submit(screen.getByRole('form'))
+
+    await waitFor(() => {
+      const widget = screen.getByTestId('thirdweb-widget')
+      // orderId comes from the API response orderId (passed into config)
+      expect(widget).toHaveAttribute('data-order-id', 'order-abc')
     })
   })
 })

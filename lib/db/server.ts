@@ -1,15 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
+import { neon } from '@neondatabase/serverless'
+
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
 
 /**
- * Server-side Supabase client using the service role key.
- * Never import this in client components or expose to the browser.
- * Call this function inside each API route handler — do not share across requests.
+ * Neon serverless SQL client.
+ * Use as a tagged template: await sql`SELECT * FROM mints WHERE id = ${id}`
+ * Results are typed as unknown[] — cast to your type at the call site.
+ * Never import this in client components.
  */
-export function serverClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Missing Supabase server env vars')
-  return createClient(url, key, {
-    auth: { persistSession: false },
-  })
-}
+export const sql = neon(process.env.DATABASE_URL)

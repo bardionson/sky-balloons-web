@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildMetadataUri } from '../metadata'
+import { PROJECT_NAME, ARTIST_NAME, NFT_LICENSE } from '../project-config'
 import type { InstallationSubmitBody } from '../db/types'
 
 const BASE_PARAMS: InstallationSubmitBody = {
@@ -28,7 +29,7 @@ describe('buildMetadataUri', () => {
 
   it('encodes the correct name including unit number and unique name', () => {
     const meta = decodeUri(buildMetadataUri(BASE_PARAMS))
-    expect(meta.name).toBe('Balloons in the Sky #42 \u2014 Drifting Over Azure')
+    expect(meta.name).toBe(`${PROJECT_NAME} #42 \u2014 Drifting Over Azure`)
   })
 
   it('sets image to ipfs:// URI using the CID', () => {
@@ -36,10 +37,10 @@ describe('buildMetadataUri', () => {
     expect(meta.image).toBe('ipfs://QmTestCid123')
   })
 
-  it('includes hardcoded description and license', () => {
+  it('includes description and license from project config', () => {
     const meta = decodeUri(buildMetadataUri(BASE_PARAMS))
-    expect(meta.description).toBe('Balloons in the Sky by B\u00e5rd Ionson & Jennifer Ionson')
-    expect(meta.license).toBe('CC BY-NC 4.0')
+    expect(meta.description).toBe(`${PROJECT_NAME} by ${ARTIST_NAME}`)
+    expect(meta.license).toBe(NFT_LICENSE)
   })
 
   it('renders orientation 0 as Portrait', () => {
