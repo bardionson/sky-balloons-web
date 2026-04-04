@@ -3,17 +3,27 @@
 import { useState, useEffect } from 'react'
 import { getContract } from 'thirdweb'
 import { ethereum } from 'thirdweb/chains'
-import { ThirdwebProvider, ConnectButton, useActiveAccount, useReadContract, useSendTransaction } from 'thirdweb/react'
+import { ConnectButton, useActiveAccount, useReadContract, useSendTransaction } from 'thirdweb/react'
 import { getOwnedNFTs, transferFrom } from 'thirdweb/extensions/erc721'
 import { thirdwebClient } from './WalletConnectSection'
 import IpfsImage from './IpfsImage'
+import { formatEther } from 'viem'
 
 const NFT_ADDRESS = process.env.NEXT_PUBLIC_BALLOONS_NFT_ADDRESS
 if (!NFT_ADDRESS) throw new Error('NEXT_PUBLIC_BALLOONS_NFT_ADDRESS is not set')
 
+const INSTALLATION_ADDRESS = process.env.NEXT_PUBLIC_INSTALLATION_CONTRACT_ADDRESS
+if (!INSTALLATION_ADDRESS) throw new Error('NEXT_PUBLIC_INSTALLATION_CONTRACT_ADDRESS is not set')
+
 const contract = getContract({
   client: thirdwebClient,
   address: NFT_ADDRESS as `0x${string}`,
+  chain: ethereum,
+})
+
+const installationContract = getContract({
+  client: thirdwebClient,
+  address: INSTALLATION_ADDRESS as `0x${string}`,
   chain: ethereum,
 })
 
@@ -40,7 +50,44 @@ function WalletViewInner() {
     queryOptions: { enabled: !!account?.address },
   })
 
+  // Each named balance view maps to one party's claimable share.
+  // The wallet page is the same for artist, gallery, and collector — each sees their own.
+  const { data: artistWei, refetch: refetchArtist } = useReadContract({
+    contract: installationContract,
+    method: 'function artistBalance() returns (uint256)',
+    params: [],
+    queryOptions: { enabled: !!account?.address },
+  })
+
+  const { data: galleryWei, refetch: refetchGallery } = useReadContract({
+    contract: installationContract,
+    method: 'function galleryBalance() returns (uint256)',
+    params: [],
+    queryOptions: { enabled: !!account?.address },
+  })
+
+  const { data: endowmentWei, refetch: refetchEndowment } = useReadContract({
+    contract: installationContract,
+    method: 'function endowmentBalance() returns (uint256)',
+    params: [],
+    queryOptions: { enabled: !!account?.address },
+  })
+
   const { mutate: sendTx } = useSendTransaction()
+
+  function handleWithdraw() {
+    sendTx(
+      { contract: installationContract, method: 'function withdraw()', params: [] } as Parameters<typeof sendTx>[0],
+      { onSuccess: () => { refetchArtist(); refetchGallery(); refetchEndowment() } }
+    )
+  }
+
+  function handleClaimEndowment() {
+    sendTx(
+      { contract: installationContract, method: 'function claimEndowment()', params: [] } as Parameters<typeof sendTx>[0],
+      { onSuccess: () => refetchEndowment() }
+    )
+  }
 
   // Detect wallet disconnect during pending transfer
   useEffect(() => {
@@ -80,6 +127,51 @@ function WalletViewInner() {
   return (
     <div className="flex flex-col items-center gap-4 w-full">
       <ConnectButton client={thirdwebClient} theme="dark" />
+
+      {account && typeof artistWei === 'bigint' && artistWei > 0n && (
+        <div className="w-full rounded-xl bg-white/5 border border-primary/30 p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] text-primary uppercase tracking-wider mb-1">Artist Revenue</p>
+            <p className="font-mono text-lg text-white">Ξ{formatEther(artistWei)}</p>
+          </div>
+          <button
+            onClick={handleWithdraw}
+            className="font-mono text-xs text-on_primary bg-primary hover:bg-primary_container transition-colors rounded px-4 py-2 whitespace-nowrap"
+          >
+            Withdraw
+          </button>
+        </div>
+      )}
+
+      {account && typeof galleryWei === 'bigint' && galleryWei > 0n && (
+        <div className="w-full rounded-xl bg-white/5 border border-secondary/30 p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] text-secondary uppercase tracking-wider mb-1">Gallery Revenue</p>
+            <p className="font-mono text-lg text-white">Ξ{formatEther(galleryWei)}</p>
+          </div>
+          <button
+            onClick={handleWithdraw}
+            className="font-mono text-xs text-on_primary bg-secondary hover:opacity-80 transition-opacity rounded px-4 py-2 whitespace-nowrap"
+          >
+            Withdraw
+          </button>
+        </div>
+      )}
+
+      {account && typeof endowmentWei === 'bigint' && endowmentWei > 0n && (
+        <div className="w-full rounded-xl bg-white/5 border border-tertiary/30 p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] text-tertiary uppercase tracking-wider mb-1">Endowment Pool</p>
+            <p className="font-mono text-lg text-white">Ξ{formatEther(endowmentWei)}</p>
+          </div>
+          <button
+            onClick={handleClaimEndowment}
+            className="font-mono text-xs text-surface bg-tertiary hover:opacity-80 transition-opacity rounded px-4 py-2 whitespace-nowrap"
+          >
+            Claim
+          </button>
+        </div>
+      )}
 
       {account && isLoading && (
         <p className="text-white/40 text-sm">Loading your collection…</p>
@@ -184,9 +276,5 @@ function WalletViewInner() {
 }
 
 export default function WalletView() {
-  return (
-    <ThirdwebProvider>
-      <WalletViewInner />
-    </ThirdwebProvider>
-  )
+  return <WalletViewInner />
 }

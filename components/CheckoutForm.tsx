@@ -137,13 +137,13 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
 
   if (phase === 'error') {
     return (
-      <div className="flex flex-col gap-3 text-center">
-        <p className="text-red-400 text-sm">{errorMsg}</p>
+      <div className="flex flex-col gap-3 text-center bg-error_container/20 border border-error_container p-6 rounded-sm">
+        <p className="font-mono text-error text-sm">{errorMsg}</p>
         <button
           onClick={() => { setPhase('form'); setErrorMsg(null) }}
-          className="text-white/60 underline text-sm hover:text-white"
+          className="font-mono text-error/60 underline decoration-error/30 text-xs hover:text-error transition-colors mt-2"
         >
-          Try again
+          [ REBOOT_PROCESS ]
         </button>
       </div>
     )
@@ -167,15 +167,18 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
         onSubmit={handleSubmit}
         className="flex flex-col gap-4 w-full"
       >
-        {/* Wallet — first step, most important */}
-        <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
-          <p className="text-sm font-medium text-white">
-            {wallet ? '✓ Wallet connected' : 'Step 1 — Connect or create your wallet'}
-          </p>
-          <p className="text-xs text-white/50">
+        {/* Wallet — first step */}
+        <div className="flex flex-col gap-3 rounded-sm border border-outline_variant/30 bg-surface_container_low p-5">
+          <div className="flex justify-between items-start">
+            <p className="font-mono text-[10px] text-tertiary">
+              {wallet ? '[ AUTHENTICATED ]' : '[ REQ: WALLET_AUTH ]'}
+            </p>
+            {wallet && <div className="w-1.5 h-1.5 rounded-full bg-tertiary shadow-[0_0_8px_rgba(57,255,20,0.8)] animate-pulse" />}
+          </div>
+          <p className="text-xs text-on_surface_variant">
             {wallet
-              ? <span className="font-mono truncate block">{wallet.slice(0, 6)}…{wallet.slice(-4)}</span>
-              : 'No crypto experience needed — use your email to create a free wallet instantly, or connect an existing one.'}
+              ? <span className="font-mono text-primary truncate block p-2 bg-surface_container rounded border border-primary/20">{wallet.slice(0, 8)}…{wallet.slice(-6)}</span>
+              : 'Secure an identity to access the terminal. Email fallback available.'}
           </p>
           <WalletConnectSection onAddress={(addr) => setWallet(addr)} />
 
@@ -198,100 +201,101 @@ export default function CheckoutForm({ mintId, mintUrl, priceUsd, unitNumber = 0
           )}
 
           {!wallet && (
-            <label className="flex flex-col gap-1 text-xs text-white/40 mt-1">
-              Or paste an existing wallet address
+            <label className="flex flex-col gap-1 font-mono text-[10px] text-outline mt-3">
+              // MANUAL_ENTRY
               <input
                 id="wallet"
                 type="text"
                 value={wallet}
                 onChange={e => setWallet(e.target.value)}
                 placeholder="0x..."
-                className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-white placeholder-white/30 outline-none focus:border-white/30 font-mono text-sm"
+                className="bg-transparent border-b-2 border-surface_container_highest px-0 py-2 text-on_surface placeholder-outline/50 outline-none focus:border-primary focus:shadow-[0_2px_10px_rgba(135,206,235,0.2)] font-mono text-sm transition-all"
               />
             </label>
           )}
         </div>
 
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          Email *
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-outline mt-2">
+          TARGET_EMAIL *
           <input
             id="email"
             type="email"
             required
             value={email}
             onChange={e => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-white/50"
+            placeholder="operator@terminal.net"
+            className="bg-transparent border-b-2 border-surface_container_highest px-0 py-2.5 text-on_surface placeholder-outline/50 outline-none focus:border-primary focus:shadow-[0_2px_10px_rgba(135,206,235,0.2)] transition-all font-sans text-sm"
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm text-white/80">
-          Name *
+        <label className="flex flex-col gap-1 font-mono text-[10px] text-outline mt-2">
+          DESIGNATION *
           <input
             id="name"
             type="text"
             required
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="Your full name"
-            className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-white/50"
+            placeholder="Operator Name"
+            className="bg-transparent border-b-2 border-surface_container_highest px-0 py-2.5 text-on_surface placeholder-outline/50 outline-none focus:border-primary focus:shadow-[0_2px_10px_rgba(135,206,235,0.2)] transition-all font-sans text-sm"
           />
         </label>
 
         <button
           type="button"
           onClick={() => setShowAddress(!showAddress)}
-          className="text-white/40 text-xs text-left hover:text-white/60 underline"
+          className="font-mono text-tertiary/70 hover:text-tertiary text-[10px] text-left mt-2 transition-colors flex items-center gap-2"
         >
-          {showAddress ? '▲ Hide mailing address' : '▼ Add mailing address (for postcards)'}
+          {showAddress ? '[-] CANCEL_PHYSICAL_ROUTING' : '[+] ADD_PHYSICAL_ROUTING_DATA (POSTCARDS)'}
         </button>
 
         {showAddress && (
-          <div className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-sm text-white/80">
-              Street
+          <div className="flex flex-col gap-4 mt-2 p-4 border border-outline_variant/20 bg-surface_container relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-outline_variant/30" />
+            <label className="flex flex-col gap-1 font-mono text-[10px] text-outline">
+              STREET
               <input id="street" type="text" value={street} onChange={e => setStreet(e.target.value)}
-                className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-white/50" />
+                className="bg-transparent border-b-2 border-surface_container_highest px-0 py-2 text-on_surface placeholder-outline/50 outline-none focus:border-primary font-sans text-sm" />
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex flex-col gap-1 text-sm text-white/80">
-                City
+            <div className="grid grid-cols-2 gap-4">
+              <label className="flex flex-col gap-1 font-mono text-[10px] text-outline">
+                CITY
                 <input id="city" type="text" value={city} onChange={e => setCity(e.target.value)}
-                  className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-white/50" />
+                  className="bg-transparent border-b-2 border-surface_container_highest px-0 py-2 text-on_surface placeholder-outline/50 outline-none focus:border-primary font-sans text-sm" />
               </label>
-              <label className="flex flex-col gap-1 text-sm text-white/80">
-                State / Region
+              <label className="flex flex-col gap-1 font-mono text-[10px] text-outline">
+                REGION
                 <input id="state" type="text" value={state} onChange={e => setState(e.target.value)}
-                  className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-white/50" />
+                  className="bg-transparent border-b-2 border-surface_container_highest px-0 py-2 text-on_surface placeholder-outline/50 outline-none focus:border-primary font-sans text-sm" />
               </label>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="flex flex-col gap-1 text-sm text-white/80">
-                Postal code
+            <div className="grid grid-cols-2 gap-4">
+              <label className="flex flex-col gap-1 font-mono text-[10px] text-outline">
+                POSTAL_CODE
                 <input id="postal" type="text" value={postal} onChange={e => setPostal(e.target.value)}
-                  className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-white/50" />
+                  className="bg-transparent border-b-2 border-surface_container_highest px-0 py-2 text-on_surface placeholder-outline/50 outline-none focus:border-primary font-sans text-sm" />
               </label>
-              <label className="flex flex-col gap-1 text-sm text-white/80">
-                Country
+              <label className="flex flex-col gap-1 font-mono text-[10px] text-outline">
+                COUNTRY
                 <input id="country" type="text" value={country} onChange={e => setCountry(e.target.value)}
-                  className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/40 outline-none focus:border-white/50" />
+                  className="bg-transparent border-b-2 border-surface_container_highest px-0 py-2 text-on_surface placeholder-outline/50 outline-none focus:border-primary font-sans text-sm" />
               </label>
             </div>
           </div>
         )}
 
         {errorMsg && phase === 'form' && (
-          <p className="text-red-400 text-sm text-center">{errorMsg}</p>
+          <p className="font-mono text-error text-[10px] text-center border border-error/20 bg-error_container/10 p-2 mt-2">{errorMsg}</p>
         )}
 
         <button
           type="submit"
           disabled={phase === 'submitting'}
-          className="rounded-lg bg-white px-6 py-3 font-semibold text-black hover:bg-white/90 transition-colors disabled:opacity-50"
+          className="mt-4 rounded-md bg-gradient-to-r from-primary to-primary_container px-6 py-4 font-mono font-bold tracking-wider text-on_primary hover:shadow-[0_0_20px_rgba(135,206,235,0.4)] transition-all disabled:opacity-50 disabled:grayscale"
         >
           {phase === 'submitting'
-            ? 'Preparing order…'
-            : `Mint Now — $${priceUsd}`}
+            ? 'INITIATING_SEQUENCE...'
+            : `EXECUTE_MINT // $${priceUsd}`}
         </button>
       </form>
     </div>
