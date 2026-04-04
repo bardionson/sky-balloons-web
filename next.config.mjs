@@ -7,6 +7,10 @@ const nextConfig = {
       { protocol: 'https', hostname: 'ipfs.io' },
     ],
   },
+  webpack: (config) => {
+    config.resolve.fallback = { ...config.resolve.fallback, 'pino-pretty': false };
+    return config;
+  },
 }
 
 export default nextConfig
