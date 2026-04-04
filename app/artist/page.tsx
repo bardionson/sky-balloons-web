@@ -5,6 +5,8 @@ import { PROJECT_NAME, ARTIST_NAME, NETWORK_NAME } from '@/lib/project-config'
 import AccessControl from '@/components/AccessControl'
 import { getContractStats } from '@/lib/chain/stats'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: `${PROJECT_NAME} — Artist Dashboard`,
   description: `Operating Terminal for ${ARTIST_NAME}`,
