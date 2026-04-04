@@ -31,7 +31,6 @@ function ThirdwebCheckout({
       <CheckoutWidget
         client={thirdwebClient}
         chain={chain}
-        token={{ address: NATIVE_TOKEN_ADDRESS }}
         amount={config.priceEth}
         seller={config.treasuryAddress as `0x${string}`}
         purchaseData={{ orderId: config.orderId }}
