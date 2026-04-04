@@ -1,6 +1,8 @@
 import { neon } from '@neondatabase/serverless'
 
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
+// Provide a dummy connection string during Vercel's build phase if the env var isn't set yet.
+// It will throw at runtime if still missing during an actual query.
+const dbUrl = process.env.DATABASE_URL || 'postgres://dummy:dummy@localhost/dummy'
 
 /**
  * Neon serverless SQL client.
@@ -8,4 +10,4 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set')
  * Results are typed as unknown[] — cast to your type at the call site.
  * Never import this in client components.
  */
-export const sql = neon(process.env.DATABASE_URL)
+export const sql = neon(dbUrl)
