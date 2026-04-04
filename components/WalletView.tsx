@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getContract } from 'thirdweb'
+import { getContract, prepareContractCall } from 'thirdweb'
 import { ethereum } from 'thirdweb/chains'
 import { ConnectButton, useActiveAccount, useReadContract, useSendTransaction } from 'thirdweb/react'
 import { getOwnedNFTs, transferFrom } from 'thirdweb/extensions/erc721'
@@ -77,14 +77,14 @@ function WalletViewInner() {
 
   function handleWithdraw() {
     sendTx(
-      { contract: installationContract, method: 'function withdraw()', params: [] } as Parameters<typeof sendTx>[0],
+      prepareContractCall({ contract: installationContract, method: 'function withdraw()', params: [] }),
       { onSuccess: () => { refetchArtist(); refetchGallery(); refetchEndowment() } }
     )
   }
 
   function handleClaimEndowment() {
     sendTx(
-      { contract: installationContract, method: 'function claimEndowment()', params: [] } as Parameters<typeof sendTx>[0],
+      prepareContractCall({ contract: installationContract, method: 'function claimEndowment()', params: [] }),
       { onSuccess: () => refetchEndowment() }
     )
   }
